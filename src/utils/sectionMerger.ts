@@ -35,7 +35,10 @@ export function splitSections(md: string): Section[] {
   return secs.filter((s) => s.heading !== null || s.body.trim().length > 0);
 }
 
-const normH = (h: string | null) => String(h || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const normH = (h: string | null) => {
+  const raw = String(h || '').toLowerCase().trim();
+  return raw.replace(/[^\p{L}\p{N}]+/gu, ' ').trim() || raw;
+};
 
 export function mergeSections(
   oldContent: string,
@@ -89,6 +92,29 @@ export function mergeSections(
 
 export function parseWikiEditBlocks(text: string): { title: string; body: string }[] {
   const src = String(text || '');
+  // Plain Markdown replies are supported too. Top-level page headings inside
+  // code fences must not become separate wiki proposals.
+  if (src.trimStart().startsWith('# ')) {
+    const items: { title: string; body: string }[] = [];
+    let fence: { marker: string; length: number } | null = null;
+    let title = '', lines: string[] = [];
+    for (const line of src.trim().split('\n')) {
+      const marker = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+      if (marker) {
+        if (!fence) fence = { marker: marker[1][0], length: marker[1].length };
+        else if (marker[1][0] === fence.marker && marker[1].length >= fence.length && !marker[2].trim()) fence = null;
+      }
+      const heading = !fence && line.match(/^#\s+(.+)$/);
+      if (heading) {
+        if (title) items.push({ title, body: lines.join('\n').trim() });
+        title = heading[1].trim(); lines = [];
+      }
+      if (title) lines.push(line);
+    }
+    if (title) items.push({ title, body: lines.join('\n').trim() });
+    return items;
+  }
+
   const blocks: { body: string; end: number; claimed: boolean }[] = [];
   const fenceRe = /^ {0,3}(`{3,}|~{3,})([^\n]*)\n/gm;
   let m: RegExpExecArray | null;
@@ -136,6 +162,7 @@ export function parseWikiEditBlocks(text: string): { title: string; body: string
       }
     }
   }
+
 
   return items;
 }

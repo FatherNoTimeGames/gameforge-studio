@@ -1,5 +1,6 @@
 // Send only changed fields/items, so a stale device cannot overwrite unrelated
 // work. Whole text fields use the last successfully submitted value.
+import { importProject } from '../src/utils/projectData.ts';
 export type Change =
   | { kind: 'replace'; value: any }
   | { kind: 'remove' }
@@ -70,6 +71,12 @@ export function workspaceFromSave(current: any, input: any) {
   if (Object.hasOwn(input, 'changes') && !validChange(input.changes)) throw new Error('Invalid workspace changes.');
   const projects = Object.hasOwn(input, 'changes') ? applyChanges(current?.projects ?? [], input.changes) : input.projects;
   if (!Array.isArray(projects) || !projects.length || !keyed(projects) || projects.some((p) => typeof p.name !== 'string' || !Array.isArray(p.pages))) throw new Error('Invalid workspace projects.');
+  for (const project of projects) {
+    for (const key of ['sources', 'chatConcept', 'chatTeacher', 'snapshots']) {
+      if (project[key] !== undefined && !Array.isArray(project[key])) throw new Error(`Invalid workspace ${key}.`);
+    }
+    importProject(project, project.id); // Validate before replacing a readable save.
+  }
   const activeProjectId = projects.some((p) => p.id === input.activeProjectId) ? input.activeProjectId
     : projects.some((p) => p.id === current?.activeProjectId) ? current.activeProjectId : projects[0].id;
   return { projects, activeProjectId, revision: (current?.revision ?? 0) + 1 };

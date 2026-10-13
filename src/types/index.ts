@@ -108,6 +108,7 @@ export interface ProjectData {
   sources: SourceItem[];
   conceptNotepad: string;
   teacherNotepad: string;
+  includeScratchpadsInAi?: boolean;
   notepad?: string;
   chatConcept: ChatMessage[];
   chatTeacher: ChatMessage[];
@@ -129,3 +130,4 @@ export interface AutoVerifyProgress {
   totalPagesCount: number;
   issuesResolvedTotal: number;
 }
+

@@ -11,7 +11,7 @@ import {
   Sparkles,
   Database
 } from 'lucide-react';
-import { COMPATIBILITY_GUIDES, TARGET_ENGINES } from '../data/initialData';
+import { COMPATIBILITY_GUIDES } from '../data/initialData';
 
 interface CompatibilityModalProps {
   isOpen: boolean;

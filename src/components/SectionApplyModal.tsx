@@ -29,7 +29,7 @@ export const SectionApplyModal: React.FC<SectionApplyModalProps> = ({
         return {
           title: block.title,
           isNew: true,
-          pageId: `page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          pageId: `page-${crypto.randomUUID()}`,
           mergedContent: block.body,
           replacedSections: [],
           addedSections: ['Full Page']

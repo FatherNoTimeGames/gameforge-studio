@@ -7,6 +7,7 @@ import { loadWorkspace, saveWorkspace, createRequest, getRequest, requestResult,
 import type { StorageEnv } from '../sites/server/contracts.ts';
 import { generateWithChatGpt, REQUEST_EVENT } from '../src/services/chatgptBridge.ts';
 import { aiGenerate, setChatGptMode } from '../src/services/ai.ts';
+import { accountFetch, setWorkspaceAccount } from '../src/services/workspaceSession.ts';
 import { changedFields } from '../shared/workspaceSync.ts';
 
 function storage() {
@@ -34,7 +35,7 @@ function storage() {
   };
   return { env, blobs, db };
 }
-const workspace = (revision = 0) => ({ projects: [{ id: 'project', name: 'My game', pages: [{ id: 'home', content: 'Keep this mechanic' }] }], activeProjectId: 'project', revision });
+const workspace = (revision = 0) => ({ projects: [{ id: 'project', name: 'My game', pages: [{ id: 'home', title: 'Home', content: 'Keep this mechanic' }] }], activeProjectId: 'project', revision });
 function request(path: string, owner?: string, method = 'GET', body?: unknown, origin = 'https://gameforge.example') {
   return new Request(`https://gameforge.example${path}`, { method, headers: {
     ...(owner ? { 'oai-authenticated-user-id': owner } : {}),
@@ -52,6 +53,8 @@ test('Sites identity and origin checks protect private workspace and requests', 
   const bob = await (await handleGameForge(request('/api/workspace', 'bob'), env))!.json();
   assert.equal(bob.workspace, null);
   assert.equal(bob.browserStorageKey, 'bob');
+  const switched = request('/api/workspace', 'bob'); switched.headers.set('X-GameForge-Account', 'alice');
+  assert.equal((await handleGameForge(switched, env))?.status, 401, 'an old open page cannot use a newly signed-in account');
   assert.equal((await handleGameForge(request('/api/openai/chat', 'alice', 'POST', {}), env))?.status, 409);
 });
 
@@ -114,6 +117,28 @@ test('MCP reads a saved task and writes a validated reply without calling an inf
   const saved = await rpc('alice', 'tools/call', { name: 'complete_request', arguments: { request_id: job.id, text: 'Consider a longer recovery window.' } });
   assert.equal(JSON.parse(saved.result.content[0].text).state, 'completed');
   assert.equal((await getRequest(env, 'alice', job.id)).state, 'completed');
+});
+
+test('only one device takes a completed reply, and recovery makes it available again', async () => {
+  const { env } = storage();
+  const job = await createRequest(env, 'alice', { prompt: 'Explain recovery' });
+  await completeRequest(env, 'alice', job.id, 'Allow a recovery window.');
+  const claims = await Promise.all([consumeRequest(env, 'alice', job.id), consumeRequest(env, 'alice', job.id)]);
+  assert.equal(claims.filter((claim) => claim.claimed).length, 1);
+  await recoverRequest(env, 'alice', job.id);
+  assert.equal((await consumeRequest(env, 'alice', job.id)).claimed, true);
+});
+
+test('account binding is attached to local app calls and never sent to external services', async () => {
+  const originalFetch = globalThis.fetch;
+  const seen: Array<{ url: string; account: string | null }> = [];
+  globalThis.fetch = async (input, init) => { seen.push({ url: String(input), account: new Headers(init?.headers).get('X-GameForge-Account') }); return Response.json({}); };
+  setWorkspaceAccount('alice');
+  try {
+    await accountFetch('/api/workspace');
+    await accountFetch('https://example.com/source');
+    assert.equal(seen[0].account, 'alice'); assert.equal(seen[1].account, null);
+  } finally { setWorkspaceAccount(null); globalThis.fetch = originalFetch; }
 });
 
 test('the browser handoff receives a native ChatGPT answer and retains its original chat destination', async () => {

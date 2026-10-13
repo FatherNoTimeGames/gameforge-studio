@@ -47,6 +47,8 @@ interface AssistantPanelProps {
   conceptNotepad: string;
   onConceptNotepadChange: (val: string) => void;
   teacherNotepad: string;
+  includeScratchpadsInAi: boolean;
+  onIncludeScratchpadsInAiChange: (enabled: boolean) => void;
   onTeacherNotepadChange: (val: string) => void;
   onPromoteNotepadToPage: (title: string, content: string, parentId?: string | null) => void;
 }
@@ -70,6 +72,8 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
   conceptNotepad,
   onConceptNotepadChange,
   teacherNotepad,
+  includeScratchpadsInAi,
+  onIncludeScratchpadsInAiChange,
   onTeacherNotepadChange,
   onPromoteNotepadToPage
 }) => {
@@ -350,7 +354,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
               {isConceptScratchpadOpen && (
                 <div className="p-3 border-t border-[#1f2638] bg-[#0c0e15] space-y-2">
                   <div className="flex justify-between items-center text-[10px] text-zinc-400">
-                    <span>Private notes — never sent to the model prompt.</span>
+                    <span>{includeScratchpadsInAi ? 'Notes are included in AI requests.' : 'Notes stay out of AI requests.'}</span>
                     <div className="flex space-x-1.5">
                       <button
                         onClick={() => handlePromoteScratchpad(conceptNotepad, false)}
@@ -378,6 +382,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
                     rows={4}
                     className="w-full bg-[#121624] border border-[#232b40] rounded-lg p-2.5 text-xs text-zinc-100 placeholder-zinc-500 resize-none focus:outline-none focus:border-amber-500/50 font-mono leading-relaxed"
                   />
+                  <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={includeScratchpadsInAi} onChange={(e) => onIncludeScratchpadsInAiChange(e.target.checked)} />Include project scratchpads in AI requests</label>
                 </div>
               )}
             </div>
@@ -407,7 +412,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
               {isTeacherScratchpadOpen && (
                 <div className="p-3 border-t border-[#1f2638] bg-[#0c0e15] space-y-2">
                   <div className="flex justify-between items-center text-[10px] text-zinc-400">
-                    <span>Private code notes — never sent to the model prompt.</span>
+                    <span>{includeScratchpadsInAi ? 'Code notes are included in AI requests.' : 'Code notes stay out of AI requests.'}</span>
                     <div className="flex space-x-1.5">
                       <button
                         onClick={() => handlePromoteScratchpad(teacherNotepad, false)}
@@ -433,6 +438,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
                     rows={4}
                     className="w-full bg-[#121624] border border-[#232b40] rounded-lg p-2.5 text-xs text-zinc-100 placeholder-zinc-500 resize-none focus:outline-none focus:border-indigo-500 font-mono leading-relaxed"
                   />
+                  <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={includeScratchpadsInAi} onChange={(e) => onIncludeScratchpadsInAiChange(e.target.checked)} />Include project scratchpads in AI requests</label>
                 </div>
               )}
             </div>

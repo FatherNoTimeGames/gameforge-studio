@@ -116,8 +116,8 @@ export async function completeRequest(env: StorageEnv, owner: string, id: string
 }
 export async function consumeRequest(env: StorageEnv, owner: string, id: string) {
   await getRequest(env, owner, id);
-  await env.DB.prepare("UPDATE requests SET state = 'consumed' WHERE owner = ? AND id = ? AND state = 'completed'").bind(owner, id).run();
-  return { ok: true };
+  const result = await env.DB.prepare("UPDATE requests SET state = 'consumed' WHERE owner = ? AND id = ? AND state = 'completed'").bind(owner, id).run();
+  return { ok: true, claimed: result.meta.changes === 1 };
 }
 export async function recoverRequest(env: StorageEnv, owner: string, id: string) {
   const job = await getRequest(env, owner, id);

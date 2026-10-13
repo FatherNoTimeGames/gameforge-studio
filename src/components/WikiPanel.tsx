@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { canSetPageParent } from '../utils/projectEdits';
 import {
   BookMarked,
   Plus,
@@ -596,7 +597,7 @@ export const WikiPanel: React.FC<WikiPanelProps> = ({
                   >
                     <option value="">None (Top-Level)</option>
                     {pages
-                      .filter((p) => p.id !== activePage?.id)
+                      .filter((p) => activePage && canSetPageParent(pages, activePage.id, p.id))
                       .map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.title}

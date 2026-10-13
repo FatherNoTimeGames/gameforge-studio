@@ -42,5 +42,5 @@
     "vite": "8.3.4",
     "wrangler": "4.150.0"
   },
-  "overrides": { "sharp": "0.35.5", "@esbuild-kit/core-utils": { "esbuild": "0.25.12" } }
+  "overrides": { "sharp": "0.35.5", "fflate": "0.8.3", "@esbuild-kit/core-utils": { "esbuild": "0.25.12" } }
 }

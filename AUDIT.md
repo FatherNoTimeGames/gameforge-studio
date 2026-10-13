@@ -38,7 +38,14 @@ as a compatible set; the Drizzle configuration loader's old esbuild dependency
 uses a patched override. Both production scans and the complete Sites graph
 are rechecked after locking the final transitive dependencies. Advisory counts
 are recorded below after the last verification run; they do not guarantee
-against all security issues.
+against all security issues. The final scan still flags the glob build-tool
+chain through `braces` (`braces`, `micromatch`, `fast-glob`, dynamic-import/commonjs
+plugins and Vinext). npm's published latest `braces` version is still `3.0.3`,
+inside the advisory range; its suggested Vinext downgrade is not a compatible
+fix for this application. That upstream finding remains open. These packages
+process build-time import patterns; this app does not expose a glob-pattern
+input endpoint. This is a source assessment, not a proof of non-exploitability.
+The old font-renderer ZIP dependency uses patched `fflate` `0.8.3`.
 Package advisories describe installed dependency versions, not proof that the
 application exposed an affected endpoint or that an exploit occurred.
 

@@ -123,6 +123,7 @@ test('the browser handoff receives a native ChatGPT answer and retains its origi
   try {
     const answer = await generateWithChatGpt({ prompt: 'Review my design', clientContext: context as any });
     assert.equal(answer.text, 'A complete game-design reply.');
+    assert.equal(answer.requestId, taskId, 'chat recovery shares the original message identity');
     const stored = await requestResult(env, await getRequest(env, 'alice', taskId));
     assert.equal(stored.state, 'consumed');
     assert.deepEqual(stored.clientContext, context);

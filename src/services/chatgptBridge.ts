@@ -26,7 +26,7 @@ export async function generateWithChatGpt(request: AiGenerateRequest): Promise<A
       // Retain the reply after consumption so it can be copied or recovered.
       await requestApi(`/${job.id}/consume`, { method: 'POST', body: '{}' });
       window.dispatchEvent(new CustomEvent(REQUEST_EVENT));
-      return { text: result.text, modelUsed: result.modelUsed };
+      return { text: result.text, modelUsed: result.modelUsed, requestId: job.id };
     }
     await new Promise((resolve) => setTimeout(resolve, 3000));
   }

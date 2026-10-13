@@ -12,7 +12,7 @@ export interface AiGenerateRequest {
   outputKind?: 'wiki_build' | 'verification' | 'index';
   clientContext?: { projectId: string; thread: 'concept' | 'teacher'; actionType: string };
 }
-export interface AiGenerateResult { text: string; modelUsed?: string; }
+export interface AiGenerateResult { text: string; modelUsed?: string; requestId?: string; }
 
 let proxyCheck: Promise<boolean> | null = null;
 let chatgptMode = false;

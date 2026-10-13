@@ -613,7 +613,7 @@ Keep the exact same markdown structure, headings, and tables.`;
       });
 
       const assistantMsg: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
+        id: result.requestId ? `chatgpt-${result.requestId}` : `msg-${Date.now() + 1}`,
         role: 'assistant',
         text: result.text,
         actionType,

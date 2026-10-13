@@ -15,6 +15,7 @@ export interface GenerateAssistantParams {
 export interface AssistantResponse {
   text: string;
   modelUsed?: string;
+  requestId?: string;
 }
 
 
@@ -279,6 +280,7 @@ ${wikiContext}${chatContextStr}${scratchpadStr}`;
   });
   return {
     text: data.text || '',
+    requestId: data.requestId,
     modelUsed: data.modelUsed
   };
 }

@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: 0.5c-512mb
     numInstances: 1
-    buildCommand: npm install --include=dev && npm run check
+    buildCommand: npm ci --include=dev && npm run check
     startCommand: npm start
     healthCheckPath: /healthz
     autoDeployTrigger: off

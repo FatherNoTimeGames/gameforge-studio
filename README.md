@@ -9,7 +9,7 @@ Every AI workflow uses **GPT-6.1 Sol** (`gpt-6.1-sol`) through OpenAI's Response
 Use Node.js 24 or later.
 
 ```sh
-npm install
+npm ci
 cp .env.example .env
 ```
 
@@ -23,7 +23,7 @@ Open `http://localhost:3000`. `DATA_DIR=./data` saves the workspace on disk. Wit
 
 ## Permanent hosting: Render
 
-The included `render.yaml` runs the existing Node server and Vite frontend together at a stable HTTPS address. It configures one paid web-service instance with a 1 GB persistent disk. Review Render's current pricing before creating the service; free ephemeral hosting does not provide the durable storage this setup needs.
+The included `render.yaml` runs the existing Node server and Vite frontend together at a stable HTTPS address. It configures one paid web-service instance with a 1 GB persistent disk. The configured service is currently $7/month plus $0.25/month for its 1 GB disk (about $7.25/month before usage extras and OpenAI API usage). Review Render's current pricing before creating the service; free ephemeral hosting does not provide the durable storage this setup needs.
 
 1. Merge the app changes after the **App checks** workflow passes.
 2. Sign in to [Render](https://render.com), connect this GitHub repository, and create a **Blueprint** using `render.yaml`.

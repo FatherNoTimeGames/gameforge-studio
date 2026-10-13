@@ -2,6 +2,8 @@
 
 A private game design workspace with a wiki, source builder, concept assistant, engine-specific code teacher, screenshot support, page history, snapshots, and Markdown/JSON/ZIP exports.
 
+See [the app audit and quick tablet setup](AUDIT.md) for verified fixes, remaining limits and startup steps.
+
 The new [ChatGPT Sites target](sites/README.md) hosts the existing interface, saves projects across devices, and connects AI tasks to a private GameForge plugin in ChatGPT. It uses your conversation's model selection and subscription limits, without an OpenAI API key. The website hands tasks to ChatGPT; it cannot automatically invoke subscription inference from a browser tab. See the linked setup guide before deployment.
 
 The original Node/static targets described below use **GPT-6.1 Sol** (`gpt-6.1-sol`) through OpenAI's Responses API with **high reasoning** and **standard processing** (`service_tier: "default"`). API billing is separate from a ChatGPT subscription. These targets remain available as alternatives.

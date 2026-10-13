@@ -38,7 +38,7 @@ export function ChatGptTasks({ onRestoreChat }: { onRestoreChat: (result: any) =
       <section role="dialog" aria-modal="true" aria-label="ChatGPT tasks" className="bg-[#141827] text-zinc-100 border border-indigo-500/30 rounded-xl w-full max-w-2xl max-h-[90dvh] overflow-y-auto p-4">
         <div className="flex justify-between gap-4 mb-3"><h2 className="font-semibold">ChatGPT tasks</h2><button aria-label="Close ChatGPT tasks" onClick={() => setOpen(false)}>Close</button></div>
         <p className="text-sm text-zinc-300 mb-3">Copy the instruction below, open ChatGPT with the GameForge plugin connected, and send it. Return here to pick up the reply. Choose your model and reasoning setting in ChatGPT.</p>
-        <p className="text-xs text-zinc-400 mb-3">Keep this page open during an action. If you close it, return to the same project and retry the same action. Some workflows create several tasks, one at a time.</p>
+        <p className="text-xs text-zinc-400 mb-3">Keep this page open during an action. After reopening, restore a chat reply here, or retry a wiki utility with the same inputs. Some workflows create several tasks, one at a time.</p>
         {error && <p role="alert" className="text-amber-300 mb-3">{error}</p>}
         {notice && <p role="status" className="text-emerald-300 mb-3">{notice}</p>}
         <label className="block text-xs mb-1" htmlFor="chatgpt-task">Saved task</label>

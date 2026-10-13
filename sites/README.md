@@ -101,7 +101,9 @@ npm run build
 Apply every committed SQL migration to the local D1 binding, in filename order:
 
 ```sh
-npx wrangler d1 execute DB --local --persist-to .wrangler/state --config dist/server/wrangler.json --file drizzle/0000_*.sql
+for migration in drizzle/*.sql; do
+  npx wrangler d1 execute DB --local --persist-to .wrangler/state --config dist/server/wrangler.json --file "$migration"
+done
 npm run dev
 ```
 
@@ -112,7 +114,9 @@ The production build includes no local mock-auth middleware.
 
 For schema changes, run `npm run db:generate`, inspect and commit the new SQL and
 metadata. Never rewrite migrations that have been published. CI verifies both
-hosting targets, the generated UI and server types, and the Worker build.
+hosting targets, the generated UI and server types, and the standalone export.
+It also runs the built Worker with real local D1/R2 bindings to check page
+rendering, identity isolation, save conflicts and an MCP task round trip.
 
 ## Limits and remaining deployment checks
 

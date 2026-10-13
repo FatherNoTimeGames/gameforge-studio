@@ -37,6 +37,7 @@ jobs:
       - run: git diff --exit-code -- drizzle
       - run: npm run typecheck
       - run: npm run build
+      - run: npm run test:worker
       - name: Verify standalone Sites source
         run: |
           node ../scripts/export-sites.mjs

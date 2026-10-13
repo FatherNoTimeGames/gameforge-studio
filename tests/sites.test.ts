@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
+import { readFileSync, readdirSync } from 'node:fs';
 import { handleGameForge } from '../sites/server/handler.ts';
 import { loadWorkspace, saveWorkspace, createRequest, getRequest, requestResult, completeRequest, consumeRequest, recoverRequest } from '../sites/server/store.ts';
 import type { StorageEnv } from '../sites/server/contracts.ts';
@@ -8,8 +9,10 @@ import { generateWithChatGpt, REQUEST_EVENT } from '../src/services/chatgptBridg
 
 function storage() {
   const db = new DatabaseSync(':memory:');
-  db.exec(`CREATE TABLE workspaces (owner TEXT PRIMARY KEY, revision INTEGER NOT NULL, blob_key TEXT NOT NULL, updated_at INTEGER NOT NULL);
-    CREATE TABLE requests (id TEXT PRIMARY KEY, owner TEXT NOT NULL, fingerprint TEXT NOT NULL, state TEXT NOT NULL, blob_key TEXT NOT NULL, result_key TEXT, created_at INTEGER NOT NULL);`);
+  const migrations = new URL('../sites/drizzle/', import.meta.url);
+  for (const name of readdirSync(migrations).filter((name) => name.endsWith('.sql')).sort()) {
+    db.exec(readFileSync(new URL(name, migrations), 'utf8'));
+  }
   const blobs = new Map<string, string>();
   const env: StorageEnv = {
     DB: { prepare(sql) {

@@ -238,7 +238,7 @@ export const CompatibilityModal: React.FC<CompatibilityModalProps> = ({
                   How Grounding Works
                 </h3>
                 <p className="text-zinc-300 leading-relaxed">
-                  Unlike generic AI chatbots that guess, GameForge passes all active wiki pages as <strong>Ground Truth</strong> directly to Gemini 3.8 Flash.
+                  Unlike generic AI chatbots that guess, GameForge passes all active wiki pages as <strong>Ground Truth</strong> directly to GPT-5 Mini.
                 </p>
               </div>
 

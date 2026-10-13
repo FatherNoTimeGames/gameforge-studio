@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { onBrowserChromeChange } from './utils/browserChrome';
 import { Header } from './components/Header';
 import { WikiPanel } from './components/WikiPanel';
 import { AssistantPanel } from './components/AssistantPanel';
@@ -8,6 +9,7 @@ import { SnapshotsModal } from './components/SnapshotsModal';
 import { PageHistoryModal } from './components/PageHistoryModal';
 import { CondenseModal } from './components/CondenseModal';
 import { SectionApplyModal } from './components/SectionApplyModal';
+import { ApiKeyModal } from './components/ApiKeyModal';
 import {
   ActionType,
   AutoVerifyProgress,
@@ -32,7 +34,7 @@ import {
   generateIndexForPage,
   requestAssistantResponse,
   verifyWikiAgainstSources
-} from './services/geminiService';
+} from './services/aiService';
 
 const STORAGE_PROJECTS_KEY = 'gameforge_multi_projects_v4';
 const STORAGE_ACTIVE_ID_KEY = 'gameforge_active_project_id_v4';
@@ -79,6 +81,35 @@ export default function App() {
     return 52;
   });
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
+
+  // Detect browser chrome (address bar / tab strip) and window size so the app
+  // always fits exactly in the visible viewport. Only inner panels scroll;
+  // header, tabs, dropdowns, chat input and its buttons stay pinned.
+  const [appHeightPx, setAppHeightPx] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Debounced so the mobile address bar collapsing/expanding during a scroll
+    // gesture doesn't re-render the whole app on every pixel change.
+    let raf = 0;
+    const update = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        // Use the *visual* viewport height: it excludes the address bar when
+        // shown, so our layout never renders controls underneath it. This is
+        // what fixes top buttons being unusable/clipped in a regular web page.
+        const visual = window.visualViewport?.height ?? window.innerHeight;
+        setAppHeightPx(Math.round(visual));
+
+        // Expose as a CSS variable for the document/body sizing in index.css.
+        document.documentElement.style.setProperty('--app-viewport-height', `${Math.round(visual)}px`);
+      });
+    };
+    const unsubscribe = onBrowserChromeChange(update);
+    return () => {
+      unsubscribe();
+      cancelAnimationFrame(raf);
+    };
+  }, []);
 
   const handleMouseDownSplitter = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -133,6 +164,7 @@ export default function App() {
   const [isCompatibilityModalOpen, setIsCompatibilityModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isSnapshotsModalOpen, setIsSnapshotsModalOpen] = useState(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [condenseModalData, setCondenseModalData] = useState<{ open: boolean; text: string }>({
     open: false,
@@ -354,8 +386,7 @@ export default function App() {
     try {
       const generatedPages = await buildWikiFromSources(
         currentProject.sources,
-        currentProject.pages,
-        replaceMode
+        currentProject.pages
       );
 
       updateCurrentProject((proj) => {
@@ -511,7 +542,7 @@ export default function App() {
 
         setAutoVerifyProgress((prev) => ({
           ...prev,
-          statusMessage: `Pass ${pass}/${MAX_PASSES}: Found ${flawed.length} flawed pages. Auto-repairing with Gemini...`
+          statusMessage: `Pass ${pass}/${MAX_PASSES}: Found ${flawed.length} flawed pages. Auto-repairing with the AI...`
         }));
 
         for (const flaw of flawed) {
@@ -790,7 +821,10 @@ Keep the exact same markdown structure, headings, and tables.`;
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#0b0d13] text-zinc-100 font-sans overflow-hidden">
+    <div
+      style={appHeightPx ? { height: `${appHeightPx}px` } : undefined}
+      className="h-[100dvh] w-screen flex flex-col bg-[#0b0d13] text-zinc-100 font-sans overflow-hidden"
+    >
       {/* Header */}
       <Header
         currentProject={currentProject}
@@ -805,6 +839,7 @@ Keep the exact same markdown structure, headings, and tables.`;
         onOpenCompatibilityModal={() => setIsCompatibilityModalOpen(true)}
         onOpenExportModal={() => setIsExportModalOpen(true)}
         onOpenSnapshotsModal={() => setIsSnapshotsModalOpen(true)}
+        onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
       />
 
       {/* Exactly Two Scalable Split Windows with Draggable Divider */}
@@ -977,6 +1012,8 @@ Keep the exact same markdown structure, headings, and tables.`;
         pages={currentProject.pages}
         onApplyPlan={handleApplySectionPlan}
       />
+
+      <ApiKeyModal open={isApiKeyModalOpen} onClose={() => setIsApiKeyModalOpen(false)} />
     </div>
   );
 }

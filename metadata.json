@@ -3,6 +3,6 @@
   "description": "Interactive AI-powered game design workspace with grounded GDD wiki, engine-specific code teacher, mechanics concept assistant, and comprehensive export compatibility.",
   "requestFramePermissions": [],
   "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+    "MAJOR_CAPABILITY_SERVER_SIDE_OPENAI_API"
   ]
 }

@@ -10,6 +10,19 @@
     background-color: #0c0e14;
     color: #e4e4e7;
     overflow: hidden;
+    /* Lock the document to the *visual* viewport so browser chrome (address
+       bar / tab strip) can never push content out of reach or create a page
+       scrollbar. --app-viewport-height is kept in sync by App.tsx; dvh is the
+       CSS-only fallback before JS runs. */
+    height: 100vh;      /* legacy fallback */
+    height: 100dvh;     /* dynamic viewport units */
+    height: var(--app-viewport-height, 100dvh);
+  }
+
+  html {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   code, pre, kbd {

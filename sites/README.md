@@ -51,6 +51,11 @@ The selected ChatGPT conversation controls model, reasoning and speed; the
 website cannot force GPT-6.1 Sol/high or promise a model unavailable in your plan.
 Your subscription's usage limits still apply.
 
+Scratchpads stay out of AI requests by default. Enable **Include project
+scratchpads in AI requests** in either notes panel to supply the active thread's
+notes as context (up to the first 3,000 characters). Notes still belong in the
+private workspace and exports. This setting is saved per project.
+
 ## Prepare standalone source for Sites
 
 From the repository root:

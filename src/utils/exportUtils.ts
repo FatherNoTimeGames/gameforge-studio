@@ -1,5 +1,6 @@
 import { createProjectBackup } from './projectData';
 import { ProjectData, TargetEngine, WikiPage } from '../types';
+import { markdownExportFiles } from './exportPages';
 
 function triggerBrowserDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -9,7 +10,8 @@ function triggerBrowserDownload(blob: Blob, filename: string) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Give mobile browsers time to begin the download before retiring its URL.
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 export function downloadJsonFile(filename: string, data: unknown) {
@@ -36,7 +38,8 @@ export async function exportFullProjectZip(
 
   // 1. Root README
   const rootReadme = `# ${projectName} - Game Design Wiki & Engine Specs
-Generated via GameForge Studio.
+Generated via GameForge Studio. Starter code is example scaffolding with placeholder
+values; it is not generated from your wiki and needs engine-specific review.
 
 ## Target Engine
 - **Engine**: ${targetEngine.name}
@@ -63,17 +66,7 @@ These markdown files follow standard GitHub Flavored Markdown (GFM) and can be o
   // 2. GDD Wiki Pages folder
   const docsFolder = zip.folder('docs');
   if (docsFolder) {
-    pages.forEach((page, index) => {
-      const safeTitle = page.title.replace(/[^a-zA-Z0-9_-]/g, '_') || `page_${index + 1}`;
-      const headerMeta = `---
-title: "${page.title}"
-category: "${page.category || 'General'}"
-lastModified: "${new Date(page.lastModified).toISOString()}"
----
-
-`;
-      docsFolder.file(`${safeTitle}.md`, headerMeta + page.content);
-    });
+    for (const file of markdownExportFiles(pages)) docsFolder.file(file.name, file.content);
   }
 
   // 3. Scratchpad / Notes folder
@@ -94,7 +87,7 @@ lastModified: "${new Date(page.lastModified).toISOString()}"
         `class_name PlayerController
 extends CharacterBody2D
 
-# Grounded in GameForge Wiki: Combat & Stamina System
+# Example scaffold: replace placeholder mechanics with your wiki specifications.
 @export_group("Resonance Stamina")
 @export var max_stamina: float = 100.0
 @export var stamina_regen_rate: float = 45.0
@@ -145,7 +138,7 @@ func trigger_overheat() -> void:
         `using System;
 using UnityEngine;
 
-// Grounded in GameForge Wiki: Combat & Stamina System
+// Example scaffold: replace placeholder mechanics with your wiki specifications.
 public class PlayerController : MonoBehaviour
 {
     [Header("Resonance Stamina")]
@@ -203,8 +196,8 @@ public class PlayerController : MonoBehaviour
       );
     } else {
       starterFolder.file(
-        `PlayerController${targetEngine.extension}`,
-        `# Starter boilerplate for ${targetEngine.name}\n# Generated from GameForge Wiki specifications\n`
+        'README.md',
+        `# ${targetEngine.name} scaffold\n\nA compiled starter script is not included for this engine. Use the Code Teacher with your wiki to create one.\n`
       );
     }
   }

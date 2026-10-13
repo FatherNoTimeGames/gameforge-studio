@@ -35,7 +35,7 @@ export async function verifyAndRepairPages(options: {
       const verdict = results[index];
       if (verdict.status === 'ok') continue;
       const page = pages[index];
-      onProgress(pass, `Pass ${pass}/${maxPasses}: Repairing "${page.title}" with GPT-6.1 Sol...`, clean, resolved);
+      onProgress(pass, `Pass ${pass}/${maxPasses}: Repairing "${page.title}" against sources...`, clean, resolved);
       const content = await repair(page, verdict, sources);
       if (shouldStop()) return;
       onRepair(page, content);

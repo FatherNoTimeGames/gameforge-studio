@@ -251,6 +251,7 @@ export const SourceBuilderPanel: React.FC<SourceBuilderPanelProps> = ({
           <span className="text-zinc-500 font-mono">
             ~{totalSourceChars.toLocaleString()} chars
           </span>
+          <button onClick={() => { if (window.confirm('Remove all source documents from this project?')) onClearSources(); }} disabled={!sources.length || isBuilding || isVerifying || autoVerifyProgress.isRunning} className="text-rose-300 disabled:opacity-40 underline">Clear sources</button>
         </div>
 
         {sources.length === 0 ? (

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { canSetPageParent } from '../utils/projectEdits';
 import {
   BookMarked,
   Plus,
@@ -155,7 +156,7 @@ export const WikiPanel: React.FC<WikiPanelProps> = ({
       let raw = activePage.content || '';
 
       // Match [[part1|part2]] or [[part1]]
-      raw = raw.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (match, p1, p2) => {
+      raw = raw.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, p1, p2) => {
         let targetPageTitle = p1.trim();
         let displayLabel = p1.trim();
 
@@ -378,6 +379,7 @@ export const WikiPanel: React.FC<WikiPanelProps> = ({
                 <span className="hidden xl:inline text-[11px]">Copy</span>
               </button>
 
+              <button onClick={onGenerateIndex} disabled={isIndexing || !pages.length} title="Generate summaries and keywords for wiki pages" className="bg-[#181c29] hover:bg-[#202638] disabled:opacity-50 text-indigo-300 border border-[#272e42] px-2 py-1.5 rounded-lg text-xs">{isIndexing ? 'Indexing...' : 'Index wiki'}</button>
               {/* History */}
               <button
                 onClick={onOpenHistory}
@@ -393,7 +395,7 @@ export const WikiPanel: React.FC<WikiPanelProps> = ({
                 onClick={onCondensePage}
                 disabled={isCondensing}
                 className="bg-[#181c29] hover:bg-[#202638] text-zinc-300 hover:text-amber-300 border border-[#272e42] px-2.5 py-1.5 rounded-lg text-xs transition flex items-center space-x-1.5 cursor-pointer"
-                title="Condense page text with GPT-6.1 Sol without losing numbers or facts"
+                title="Preview a shorter page and check its numbers, tables and links"
               >
                 <Minimize2 className="w-3.5 h-3.5 text-amber-400" />
                 <span className="hidden xl:inline text-[11px]">Condense</span>
@@ -576,7 +578,7 @@ export const WikiPanel: React.FC<WikiPanelProps> = ({
           {activeLeftTab === 'edit' && viewMode !== 'preview' && (
             <div className="px-4 py-1.5 border-b border-[#1f2638] bg-[#0f121a] flex flex-wrap items-center justify-between shrink-0 gap-2">
               {/* Title input & Parent Page selector */}
-              <div className="flex items-center space-x-2 flex-1">
+              <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
                 <input
                   type="text"
                   value={activePage?.title || ''}
@@ -585,7 +587,13 @@ export const WikiPanel: React.FC<WikiPanelProps> = ({
                   placeholder="Article Title..."
                 />
 
-                <div className="flex items-center space-x-1 text-zinc-400 text-xs">
+                <div className="flex flex-wrap items-center gap-1 text-zinc-400 text-xs">
+                  <label className="text-[10px] text-zinc-500">Category:
+                    <select aria-label="Page category" value={activePage?.category ?? ''} onChange={(e) => activePage && onUpdateCategory(activePage.id, (e.target.value || undefined) as WikiPage['category'])} className="ml-1 bg-[#181c2b] border border-[#272e42] text-[11px] rounded px-1 py-0.5 text-zinc-200">
+                      <option value="">Uncategorized</option>
+                      {['Core', 'Mechanics', 'Systems', 'World', 'Tech'].map((category) => <option key={category} value={category}>{category}</option>)}
+                    </select>
+                  </label>
                   <span className="text-[10px] text-zinc-500">Parent:</span>
                   <select
                     value={activePage?.parentId || ''}
@@ -596,7 +604,7 @@ export const WikiPanel: React.FC<WikiPanelProps> = ({
                   >
                     <option value="">None (Top-Level)</option>
                     {pages
-                      .filter((p) => p.id !== activePage?.id)
+                      .filter((p) => activePage && canSetPageParent(pages, activePage.id, p.id))
                       .map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.title}

@@ -47,6 +47,8 @@ interface AssistantPanelProps {
   conceptNotepad: string;
   onConceptNotepadChange: (val: string) => void;
   teacherNotepad: string;
+  includeScratchpadsInAi: boolean;
+  onIncludeScratchpadsInAiChange: (enabled: boolean) => void;
   onTeacherNotepadChange: (val: string) => void;
   onPromoteNotepadToPage: (title: string, content: string, parentId?: string | null) => void;
 }
@@ -70,6 +72,8 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
   conceptNotepad,
   onConceptNotepadChange,
   teacherNotepad,
+  includeScratchpadsInAi,
+  onIncludeScratchpadsInAiChange,
   onTeacherNotepadChange,
   onPromoteNotepadToPage
 }) => {
@@ -155,8 +159,6 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
     return calculateTotalWikiTokens(pages);
   }, [pages]);
 
-  const TOKEN_BUDGET = 1_050_000;
-  const budgetPercent = Math.min(100, Math.round((totalTokens / TOKEN_BUDGET) * 100));
 
   const filteredContextPages = useMemo(() => {
     if (!contextFilter.trim()) return pages;
@@ -252,7 +254,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Brain className="w-4 h-4 text-purple-400" />
-                <h3 className="font-bold text-sm text-zinc-100">AI Grounding Memory Gauge</h3>
+                <h3 className="font-bold text-sm text-zinc-100">Wiki Context Overview</h3>
               </div>
               <span className="bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full">
                 Tiered Retrieval Active
@@ -266,22 +268,14 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
             {/* Token Budget Gauge */}
             <div className="bg-[#0e1017] p-3 rounded-lg border border-[#1f2537] space-y-1.5">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-zinc-400 font-medium">Context Working Memory</span>
+                <span className="text-zinc-400 font-medium">Estimated wiki text size</span>
                 <span className="font-bold text-zinc-100">
-                  {totalTokens.toLocaleString()} / {TOKEN_BUDGET.toLocaleString()} tokens
+                  ~{totalTokens.toLocaleString()} tokens
                 </span>
-              </div>
-              <div className="w-full bg-[#1b2031] h-2 rounded-full overflow-hidden">
-                <div
-                  className={`h-full transition-all duration-300 rounded-full ${
-                    budgetPercent > 85 ? 'bg-amber-400' : 'bg-gradient-to-r from-indigo-500 to-purple-500'
-                  }`}
-                  style={{ width: `${budgetPercent}%` }}
-                />
               </div>
               <div className="flex justify-between text-[10px] text-zinc-500 pt-0.5">
                 <span>{pages.length} pages/subpages ({totalWords.toLocaleString()} words)</span>
-                <span>{100 - budgetPercent}% free headroom</span>
+                <span>Model limits vary</span>
               </div>
             </div>
 
@@ -350,7 +344,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
               {isConceptScratchpadOpen && (
                 <div className="p-3 border-t border-[#1f2638] bg-[#0c0e15] space-y-2">
                   <div className="flex justify-between items-center text-[10px] text-zinc-400">
-                    <span>Private notes — never sent to the model prompt.</span>
+                    <span>{includeScratchpadsInAi ? 'Notes are included in AI requests.' : 'Notes stay out of AI requests.'}</span>
                     <div className="flex space-x-1.5">
                       <button
                         onClick={() => handlePromoteScratchpad(conceptNotepad, false)}
@@ -378,6 +372,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
                     rows={4}
                     className="w-full bg-[#121624] border border-[#232b40] rounded-lg p-2.5 text-xs text-zinc-100 placeholder-zinc-500 resize-none focus:outline-none focus:border-amber-500/50 font-mono leading-relaxed"
                   />
+                  <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={includeScratchpadsInAi} onChange={(e) => onIncludeScratchpadsInAiChange(e.target.checked)} />Include project scratchpads in AI requests</label>
                 </div>
               )}
             </div>
@@ -407,7 +402,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
               {isTeacherScratchpadOpen && (
                 <div className="p-3 border-t border-[#1f2638] bg-[#0c0e15] space-y-2">
                   <div className="flex justify-between items-center text-[10px] text-zinc-400">
-                    <span>Private code notes — never sent to the model prompt.</span>
+                    <span>{includeScratchpadsInAi ? 'Code notes are included in AI requests.' : 'Code notes stay out of AI requests.'}</span>
                     <div className="flex space-x-1.5">
                       <button
                         onClick={() => handlePromoteScratchpad(teacherNotepad, false)}
@@ -433,6 +428,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
                     rows={4}
                     className="w-full bg-[#121624] border border-[#232b40] rounded-lg p-2.5 text-xs text-zinc-100 placeholder-zinc-500 resize-none focus:outline-none focus:border-indigo-500 font-mono leading-relaxed"
                   />
+                  <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={includeScratchpadsInAi} onChange={(e) => onIncludeScratchpadsInAiChange(e.target.checked)} />Include project scratchpads in AI requests</label>
                 </div>
               )}
             </div>

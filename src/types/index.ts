@@ -30,6 +30,7 @@ export interface WikiPage {
   parentId?: string | null;
   content: string;
   lastModified: number;
+  lastContentEditAt?: number;
   summary?: string;
   keywords?: string[];
   needsReview?: false | 'warning' | 'error';
@@ -108,6 +109,7 @@ export interface ProjectData {
   sources: SourceItem[];
   conceptNotepad: string;
   teacherNotepad: string;
+  includeScratchpadsInAi?: boolean;
   notepad?: string;
   chatConcept: ChatMessage[];
   chatTeacher: ChatMessage[];
@@ -129,3 +131,4 @@ export interface AutoVerifyProgress {
   totalPagesCount: number;
   issuesResolvedTotal: number;
 }
+

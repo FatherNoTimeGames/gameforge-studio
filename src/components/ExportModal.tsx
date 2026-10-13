@@ -77,6 +77,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = '';
 
     setImportError(null);
     const reader = new FileReader();
@@ -93,6 +94,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         setImportError(err.message || 'Failed to parse JSON file.');
       }
     };
+    reader.onerror = () => setImportError('The backup file could not be read. Choose it again or restore another copy.');
     reader.readAsText(file);
   };
 

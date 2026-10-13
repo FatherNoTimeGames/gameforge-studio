@@ -74,6 +74,8 @@ export async function handleGameForge(request: Request, env: StorageEnv): Promis
     // Production Sites dispatch injects identity. Never accept an owner from JSON.
     const owner = request.headers.get('oai-authenticated-user-id');
     if (!owner) throw new HttpError(401, 'Sign in with ChatGPT to use your private GameForge workspace.');
+    const expectedAccount = request.headers.get('x-gameforge-account');
+    if (expectedAccount && expectedAccount !== owner) throw new HttpError(401, 'Your signed-in account changed. Reload GameForge before continuing.');
     if (!env.DB || !env.BUCKET) throw new HttpError(503, 'GameForge cloud storage is not configured.');
     if (url.pathname === '/mcp') {
       if (request.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } });

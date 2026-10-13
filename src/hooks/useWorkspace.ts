@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProjectData } from '../types';
 import { importProject } from '../utils/projectData';
 import { applyChanges, changedFields, keepPendingEdits, validChange } from '../../shared/workspaceSync.ts';
+import { accountFetch, setWorkspaceAccount } from '../services/workspaceSession';
 
 const PROJECTS_KEY = 'gameforge_multi_projects_v4';
 const ACTIVE_KEY = 'gameforge_active_project_id_v4';
@@ -92,9 +93,10 @@ export function useWorkspace(defaultProject: ProjectData, accountStorage = false
       const payload = mergeMode.current ? { changes, activeProjectId: latest.current.activeProjectId }
         : { projects: submitted, activeProjectId: latest.current.activeProjectId, revision: revision.current };
       const body = JSON.stringify(payload);
-      const response = await fetch('/api/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body,
+      const response = await accountFetch('/api/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body,
         keepalive: new TextEncoder().encode(body).length < 60_000, signal: AbortSignal.timeout(15_000) });
       const data = await response.json();
+      if (response.status === 401) { initialized.current = false; if (mounted.current) setReady(false); }
       if (!response.ok) throw new Error(data.error || 'Cloud save failed. Pending edits will retry automatically.');
       accept(data.projects ? data : { ...payload, projects: submitted, revision: data.revision }, submitted);
       succeeded = true;
@@ -108,7 +110,11 @@ export function useWorkspace(defaultProject: ProjectData, accountStorage = false
     if (!initialized.current || !cloud.current || busy.current) return;
     busy.current = true;
     try {
-      const response = await fetch(`/api/workspace?revision=${revision.current}`, { signal: AbortSignal.timeout(15_000) });
+      const response = await accountFetch(`/api/workspace?revision=${revision.current}`, { signal: AbortSignal.timeout(15_000) });
+      if (response.status === 401) {
+        backup(); initialized.current = false; if (mounted.current) setReady(false);
+        throw new Error('Your sign-in session changed or expired. Reload GameForge to continue. Pending edits are kept in the original account backup.');
+      }
       if (!response.ok) throw new Error('Could not refresh cloud updates. Your pending edits are kept and will retry.');
       const data = await response.json();
       if (!data.unchanged && data.workspace && data.workspace.revision !== revision.current) accept(data.workspace);
@@ -116,7 +122,7 @@ export function useWorkspace(defaultProject: ProjectData, accountStorage = false
     } catch (error: any) { if (mounted.current) setSaveError(error.message); }
     finally { busy.current = false; }
     if (changedFields(acknowledged.current, latest.current.projects)) void methods.current?.save();
-  }, [accept]);
+  }, [accept, backup]);
   methods.current = { save, refresh };
 
   useEffect(() => {
@@ -139,9 +145,11 @@ export function useWorkspace(defaultProject: ProjectData, accountStorage = false
         if (accountStorage) {
           if (typeof data.browserStorageKey !== 'string' || !data.enabled) throw new Error('Your private workspace could not be identified. Sign in again.');
           const owner = encodeURIComponent(data.browserStorageKey);
+          setWorkspaceAccount(data.browserStorageKey);
           storageKeys.current = { projects: `${PROJECTS_KEY}_${owner}`, active: `${ACTIVE_KEY}_${owner}` };
         }
         cloud.current = Boolean(data.enabled);
+        if (!accountStorage) setWorkspaceAccount(null);
         mergeMode.current = data.syncMode === 'merge';
         setDurable(cloud.current);
         if (initial.error && !data.workspace) throw new Error(initial.error);

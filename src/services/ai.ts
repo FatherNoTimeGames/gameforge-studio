@@ -1,9 +1,9 @@
 import { getEffectiveClientKey } from './config.ts';
-import { AI_CONFIG, generateResponse } from '../../shared/openai.ts';
+import { generateResponse } from '../../shared/openai.ts';
+import { accountFetch } from './workspaceSession.ts';
 import { htmlToPlainText } from '../../shared/htmlText.ts';
 import { generateWithChatGpt } from './chatgptBridge.ts';
 
-export const DEFAULT_MODEL = AI_CONFIG.model;
 export interface AiGenerateRequest {
   prompt: string;
   systemInstruction?: string;
@@ -21,7 +21,7 @@ export function setChatGptMode(enabled: boolean) { subscriptionMode = enabled; }
 async function checkProxy(): Promise<boolean> {
   if (proxyCheck) return proxyCheck;
   proxyCheck = (async () => {
-    const response = await fetch('/api/status', { signal: AbortSignal.timeout(15_000) });
+    const response = await accountFetch('/api/status', { signal: AbortSignal.timeout(15_000) });
     if (response.status === 404) return false;
     if (!response.ok) throw new Error('The workspace server is unavailable. Sign in or retry when it is back online.');
     if (!response.headers.get('content-type')?.includes('application/json')) return false;
@@ -38,7 +38,7 @@ export async function aiGenerate(request: AiGenerateRequest): Promise<AiGenerate
   if (subscriptionMode) return generateWithChatGpt(request);
   if (await checkProxy()) {
     if (chatgptMode) return generateWithChatGpt(request);
-    const response = await fetch('/api/openai/chat', {
+    const response = await accountFetch('/api/openai/chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request), signal: AbortSignal.timeout(250_000),
     });
@@ -54,9 +54,9 @@ export async function aiGenerate(request: AiGenerateRequest): Promise<AiGenerate
 }
 
 export async function fetchRemoteText(url: string): Promise<string> {
-  const hasProxy = await checkProxy();
+  const hasProxy = subscriptionMode || await checkProxy();
   const response = hasProxy
-    ? await fetch('/api/proxy-fetch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }), signal: AbortSignal.timeout(20_000) })
+    ? await accountFetch('/api/proxy-fetch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }), signal: AbortSignal.timeout(20_000) })
     : await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(20_000) });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));

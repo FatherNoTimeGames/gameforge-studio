@@ -20,6 +20,7 @@ export interface AssistantResponse {
 
 
 import { aiGenerate, fetchRemoteText } from './ai.ts';
+import { parseWikiEditBlocks } from '../utils/sectionMerger.ts';
 const requestAi = aiGenerate;
 
 // Token-saving Smart Tiered Context Assembly with Hierarchy Awareness and GitHub Wiki link parsing
@@ -465,8 +466,8 @@ CRITICAL RULES:
       systemInstruction,
   });
   let fixedText = (data.text || '').trim();
-  const fence = fixedText.match(/```(?:markdown|md)?[^\S\n]*\n([\s\S]*?)```/i);
-  if (fence) fixedText = fence[1].trim();
+  const blocks = parseWikiEditBlocks(fixedText);
+  if (blocks.length === 1) fixedText = blocks[0].body;
 
   if (!fixedText.startsWith('#')) {
     fixedText = `# ${page.title}\n\n` + fixedText;

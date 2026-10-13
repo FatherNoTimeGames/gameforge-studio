@@ -11,7 +11,7 @@ import {
   Sparkles,
   Database
 } from 'lucide-react';
-import { COMPATIBILITY_GUIDES, TARGET_ENGINES } from '../data/initialData';
+import { COMPATIBILITY_GUIDES } from '../data/initialData';
 
 interface CompatibilityModalProps {
   isOpen: boolean;
@@ -255,7 +255,7 @@ export const CompatibilityModal: React.FC<CompatibilityModalProps> = ({
                 <div className="flex items-start space-x-3 p-3 bg-[#131624] rounded-lg border border-[#21273c]">
                   <span className="w-6 h-6 rounded-full bg-indigo-600/30 text-indigo-300 font-bold flex items-center justify-center shrink-0 text-xs">2</span>
                   <div>
-                    <strong className="text-zinc-200">Context Budget Estimation:</strong> The app tracks token count against model budget, ensuring prompt stability without truncation.
+                    <strong className="text-zinc-200">Context Size Estimation:</strong> Token figures estimate wiki text size. Requests use relevant pages, summaries and recent chat. Available context depends on the selected model; the estimate does not guarantee that a request fits.
                   </div>
                 </div>
 

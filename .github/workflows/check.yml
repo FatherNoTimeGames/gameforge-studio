@@ -14,12 +14,17 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci --include=dev
+      - name: Audit installed production dependencies
+        run: npm audit --omit=dev --json > dependency-audit.json
+        continue-on-error: true
       - run: npm run check
+      - run: npm run lint -- --noUnusedLocals --noUnusedParameters
       - uses: actions/upload-artifact@v4
         with:
           name: verified-build
           path: |
             package-lock.json
+            dependency-audit.json
             dist
           retention-days: 7
   sites:
@@ -32,7 +37,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Record upstream dependency releases
+        run: |
+          node --input-type=module -e 'import {execFileSync} from "node:child_process"; import {writeFileSync} from "node:fs"; const result=Object.fromEntries(["braces","fflate"].map(name=>[name,execFileSync("npm",["view",name,"version"],{encoding:"utf8"}).trim()])); writeFileSync("dependency-releases.json",JSON.stringify(result));'
       - run: npm ci --include=dev
+      - name: Audit Sites production dependencies
+        run: npm audit --omit=dev --json > dependency-audit.json
+        continue-on-error: true
+      - name: Audit complete Sites dependency graph
+        run: npm audit --json > dependency-audit-all.json
+        continue-on-error: true
       - run: npm run db:generate
       - run: git diff --exit-code -- drizzle
       - run: npm run typecheck
@@ -52,6 +66,10 @@ jobs:
           name: sites-build
           path: |
             sites/package-lock.json
+            sites/package.json
+            sites/dependency-audit.json
+            sites/dependency-audit-all.json
+            sites/dependency-releases.json
             sites/drizzle
             sites/dist
           retention-days: 7

@@ -21,7 +21,6 @@ import {
   RightTab,
   Snapshot,
   SourceItem,
-  TargetEngineId,
   VerificationVerdict,
   WikiPage,
   WikiViewMode
@@ -40,6 +39,7 @@ import { verifyAndRepairPages } from './services/verification';
 import { useWorkspace } from './hooks/useWorkspace';
 import { importProject } from './utils/projectData';
 import { setChatGptMode } from './services/ai';
+import { appendChatReply, applyPageContent, assistantNotes, canSetPageParent, normalizePageHierarchy, pageWithContent } from './utils/projectEdits';
 
 function createDefaultProject(id: string = 'proj-default', name: string = 'Project ChronoStrike'): ProjectData {
   return {
@@ -168,11 +168,11 @@ export default function App({ chatgptMode = false }: { chatgptMode?: boolean }) 
   const [isSnapshotsModalOpen, setIsSnapshotsModalOpen] = useState(false);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-  const [condenseModalData, setCondenseModalData] = useState<{ open: boolean; text: string }>({
+  const [condenseModalData, setCondenseModalData] = useState<{ open: boolean; text: string; projectId?: string; pageId?: string }>({
     open: false,
     text: ''
   });
-  const [sectionApplyData, setSectionApplyData] = useState<{ open: boolean; rawText: string }>({
+  const [sectionApplyData, setSectionApplyData] = useState<{ open: boolean; rawText: string; projectId?: string }>({
     open: false,
     rawText: ''
   });
@@ -259,30 +259,14 @@ export default function App({ chatgptMode = false }: { chatgptMode?: boolean }) 
   const handleUpdateTitle = (id: string, title: string) => {
     updateCurrentProject((proj) => ({
       ...proj,
-      pages: proj.pages.map((p) => (p.id === id ? { ...p, title, lastModified: Date.now() } : p))
+      pages: proj.pages.map((p) => (p.id === id ? { ...p, title, summary: undefined, keywords: undefined, lastModified: Date.now() } : p))
     }));
   };
 
   const handleUpdateContent = (id: string, content: string) => {
     updateCurrentProject((proj) => ({
       ...proj,
-      pages: proj.pages.map((p) => {
-        if (p.id === id) {
-          const history = Array.isArray(p.history) ? [...p.history] : [];
-          if (p.content !== content) {
-            history.unshift({ content: p.content, title: p.title, at: Date.now() });
-          }
-          return {
-            ...p,
-            content,
-            summary: undefined,
-            keywords: undefined,
-            history: history.slice(0, 5),
-            lastModified: Date.now()
-          };
-        }
-        return p;
-      })
+      pages: proj.pages.map((p) => p.id === id ? pageWithContent(p, content) : p)
     }));
   };
 
@@ -294,6 +278,7 @@ export default function App({ chatgptMode = false }: { chatgptMode?: boolean }) 
   };
 
   const handleUpdateParentId = (id: string, parentId: string | null) => {
+    if (!canSetPageParent(currentProject.pages, id, parentId)) return;
     updateCurrentProject((proj) => ({
       ...proj,
       pages: proj.pages.map((p) => (p.id === id ? { ...p, parentId, lastModified: Date.now() } : p))
@@ -389,7 +374,7 @@ export default function App({ chatgptMode = false }: { chatgptMode?: boolean }) 
           }
         }
 
-        return { ...proj, pages: updatedPages };
+        return { ...proj, pages: normalizePageHierarchy(updatedPages) };
       });
 
       setLeftTab('wiki');
@@ -477,6 +462,8 @@ export default function App({ chatgptMode = false }: { chatgptMode?: boolean }) 
   const handleApplyVerificationFix = async (verdict: VerificationVerdict) => {
     const targetPage = currentProject.pages.find((p) => p.title === verdict.title);
     if (!targetPage) return;
+    if (isAiLoading) return;
+    setIsAiLoading(true);
 
     try {
       const fixPrompt = `Please fix this wiki page according to this verification report:
@@ -492,10 +479,10 @@ Keep the exact same markdown structure, headings, and tables.`;
         targetEngine: currentEngine
       });
 
-      setSectionApplyData({ open: true, rawText: response.text });
+      setSectionApplyData({ open: true, rawText: response.text, projectId: currentProject.id });
     } catch (e: any) {
       alert(`Fix generation failed: ${e.message}`);
-    }
+    } finally { setIsAiLoading(false); }
   };
 
   const handleGenerateIndex = async () => {
@@ -513,7 +500,7 @@ Keep the exact same markdown structure, headings, and tables.`;
         }
       }
     } catch (e) {
-      console.warn('Indexing error:', e);
+      alert(`Indexing failed: ${e instanceof Error ? e.message : 'Please retry.'}`);
     } finally {
       setIsIndexing(false);
     }
@@ -524,7 +511,7 @@ Keep the exact same markdown structure, headings, and tables.`;
     setIsCondensing(true);
     try {
       const condensed = await condenseWikiPage(activeWikiPage);
-      setCondenseModalData({ open: true, text: condensed });
+      setCondenseModalData({ open: true, text: condensed, projectId: currentProject.id, pageId: activeWikiPage.id });
     } catch (e: any) {
       alert(`Condense failed: ${e.message}`);
     } finally {
@@ -535,7 +522,8 @@ Keep the exact same markdown structure, headings, and tables.`;
   const handleApplySectionPlan = (
     plans: { pageId: string; title: string; newContent: string; isNew: boolean }[]
   ) => {
-    updateCurrentProject((proj) => {
+    setProjects((previous) => previous.map((proj) => {
+      if (proj.id !== sectionApplyData.projectId) return proj;
       let pages = [...proj.pages];
       for (const pl of plans) {
         if (pl.isNew) {
@@ -544,7 +532,7 @@ Keep the exact same markdown structure, headings, and tables.`;
             title: pl.title,
             content: pl.newContent,
             category: 'Mechanics',
-            parentId: activeWikiPage?.id || null,
+            parentId: null,
             lastModified: Date.now(),
             history: []
           });
@@ -566,8 +554,8 @@ Keep the exact same markdown structure, headings, and tables.`;
           });
         }
       }
-      return { ...proj, pages };
-    });
+      return { ...proj, pages, updatedAt: Date.now() };
+    }));
   };
 
   // Chat sender
@@ -605,8 +593,7 @@ Keep the exact same markdown structure, headings, and tables.`;
         prompt,
         pages: currentProject.pages,
         targetEngine: currentEngine,
-        notepadContent:
-          rightTab === 'concept' ? currentProject.conceptNotepad : currentProject.teacherNotepad,
+        notepadContent: assistantNotes(currentProject, rightTab === 'teacher' ? 'teacher' : 'concept'),
         chatHistory: activeChatHistory,
         imageBase64: image?.base64,
         imageMimeType: image?.mimeType
@@ -621,11 +608,7 @@ Keep the exact same markdown structure, headings, and tables.`;
         modelUsed: result.modelUsed
       };
 
-      updateCurrentProject((p) => ({
-        ...p,
-        chatConcept: rightTab === 'concept' ? [...p.chatConcept, assistantMsg] : p.chatConcept,
-        chatTeacher: rightTab === 'teacher' ? [...p.chatTeacher, assistantMsg] : p.chatTeacher
-      }));
+      updateCurrentProject((p) => appendChatReply(p, rightTab === 'teacher' ? 'teacher' : 'concept', assistantMsg));
     } catch (err: any) {
       const errorMsg: ChatMessage = {
         id: `msg-${crypto.randomUUID()}`,
@@ -707,9 +690,8 @@ Keep the exact same markdown structure, headings, and tables.`;
         const context = result.clientContext;
         if (!context || !projects.some((p) => p.id === context.projectId)) throw new Error('This reply has no matching project chat. View and copy the saved reply instead.');
         const message: ChatMessage = { id: `chatgpt-${result.id}`, role: 'assistant', text: result.text, actionType: context.actionType as ActionType, timestamp: Date.now(), modelUsed: result.modelUsed };
-        const key = context.thread === 'teacher' ? 'chatTeacher' : 'chatConcept';
-        setProjects((previous) => previous.map((project) => project.id !== context.projectId || project[key].some((m) => m.id === message.id)
-          ? project : { ...project, [key]: [...project[key], message], updatedAt: Date.now() }));
+        setProjects((previous) => previous.map((project) => project.id !== context.projectId ? project
+          : { ...appendChatReply(project, context.thread, message), updatedAt: Date.now() }));
       }} />}
       {saveError && (
         <div role="alert" className="shrink-0 bg-amber-950 text-amber-100 px-3 py-2 text-xs flex items-center gap-3">
@@ -830,7 +812,7 @@ Keep the exact same markdown structure, headings, and tables.`;
             }}
             isLoading={isAiLoading}
             activeWikiPage={activeWikiPage}
-            onOpenSectionApply={(text) => setSectionApplyData({ open: true, rawText: text })}
+            onOpenSectionApply={(text) => setSectionApplyData({ open: true, rawText: text, projectId: currentProject.id })}
             pages={currentProject.pages}
             onSelectPage={setActivePageId}
             conceptNotepad={currentProject.conceptNotepad}
@@ -838,6 +820,8 @@ Keep the exact same markdown structure, headings, and tables.`;
               updateCurrentProject((p) => ({ ...p, conceptNotepad: val }))
             }
             teacherNotepad={currentProject.teacherNotepad}
+            includeScratchpadsInAi={Boolean(currentProject.includeScratchpadsInAi)}
+            onIncludeScratchpadsInAiChange={(enabled) => updateCurrentProject((p) => ({ ...p, includeScratchpadsInAi: enabled }))}
             onTeacherNotepadChange={(val) =>
               updateCurrentProject((p) => ({ ...p, teacherNotepad: val }))
             }
@@ -903,10 +887,11 @@ Keep the exact same markdown structure, headings, and tables.`;
       <CondenseModal
         isOpen={condenseModalData.open}
         onClose={() => setCondenseModalData({ open: false, text: '' })}
-        page={activeWikiPage}
+        page={projects.find((p) => p.id === condenseModalData.projectId)?.pages.find((p) => p.id === condenseModalData.pageId) ?? null}
         condensedText={condenseModalData.text}
         onApplyCondensed={(text) => {
-          if (activeWikiPage) handleUpdateContent(activeWikiPage.id, text);
+          try { setProjects((previous) => applyPageContent(previous, condenseModalData.projectId!, condenseModalData.pageId!, text)); }
+          catch (error: any) { alert(error.message); }
         }}
       />
 
@@ -914,7 +899,7 @@ Keep the exact same markdown structure, headings, and tables.`;
         isOpen={sectionApplyData.open}
         onClose={() => setSectionApplyData({ open: false, rawText: '' })}
         rawAssistantText={sectionApplyData.rawText}
-        pages={currentProject.pages}
+        pages={projects.find((p) => p.id === sectionApplyData.projectId)?.pages ?? []}
         onApplyPlan={handleApplySectionPlan}
       />
 

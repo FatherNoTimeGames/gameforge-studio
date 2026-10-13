@@ -8,6 +8,7 @@ import { SnapshotsModal } from './components/SnapshotsModal';
 import { PageHistoryModal } from './components/PageHistoryModal';
 import { CondenseModal } from './components/CondenseModal';
 import { SectionApplyModal } from './components/SectionApplyModal';
+import { ApiKeyModal } from './components/ApiKeyModal';
 import {
   ActionType,
   AutoVerifyProgress,
@@ -32,7 +33,7 @@ import {
   generateIndexForPage,
   requestAssistantResponse,
   verifyWikiAgainstSources
-} from './services/geminiService';
+} from './services/aiService';
 
 const STORAGE_PROJECTS_KEY = 'gameforge_multi_projects_v4';
 const STORAGE_ACTIVE_ID_KEY = 'gameforge_active_project_id_v4';
@@ -133,6 +134,7 @@ export default function App() {
   const [isCompatibilityModalOpen, setIsCompatibilityModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isSnapshotsModalOpen, setIsSnapshotsModalOpen] = useState(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [condenseModalData, setCondenseModalData] = useState<{ open: boolean; text: string }>({
     open: false,
@@ -354,8 +356,7 @@ export default function App() {
     try {
       const generatedPages = await buildWikiFromSources(
         currentProject.sources,
-        currentProject.pages,
-        replaceMode
+        currentProject.pages
       );
 
       updateCurrentProject((proj) => {
@@ -511,7 +512,7 @@ export default function App() {
 
         setAutoVerifyProgress((prev) => ({
           ...prev,
-          statusMessage: `Pass ${pass}/${MAX_PASSES}: Found ${flawed.length} flawed pages. Auto-repairing with Gemini...`
+          statusMessage: `Pass ${pass}/${MAX_PASSES}: Found ${flawed.length} flawed pages. Auto-repairing with the AI...`
         }));
 
         for (const flaw of flawed) {
@@ -805,6 +806,7 @@ Keep the exact same markdown structure, headings, and tables.`;
         onOpenCompatibilityModal={() => setIsCompatibilityModalOpen(true)}
         onOpenExportModal={() => setIsExportModalOpen(true)}
         onOpenSnapshotsModal={() => setIsSnapshotsModalOpen(true)}
+        onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
       />
 
       {/* Exactly Two Scalable Split Windows with Draggable Divider */}
@@ -977,6 +979,8 @@ Keep the exact same markdown structure, headings, and tables.`;
         pages={currentProject.pages}
         onApplyPlan={handleApplySectionPlan}
       />
+
+      <ApiKeyModal open={isApiKeyModalOpen} onClose={() => setIsApiKeyModalOpen(false)} />
     </div>
   );
 }

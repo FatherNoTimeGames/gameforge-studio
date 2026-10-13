@@ -1,18 +1,18 @@
 import { ActionType, ChatMessage, SourceItem, TargetEngine, VerificationVerdict, WikiPage } from '../types';
+import { aiGenerate, DEFAULT_MODEL, fetchRemoteText } from './ai';
 
-export interface GenerateGeminiParams {
+export interface GenerateAiParams {
   actionType: ActionType;
   prompt: string;
   pages: WikiPage[];
   targetEngine: TargetEngine;
   notepadContent?: string;
   chatHistory?: ChatMessage[];
-  clientApiKey?: string;
   imageBase64?: string;
   imageMimeType?: string;
 }
 
-export interface GeminiResponse {
+export interface AiResponse {
   text: string;
   modelUsed?: string;
 }
@@ -103,25 +103,12 @@ export function assembleWikiContext(pages: WikiPage[], query: string = ''): stri
   return `=== COMPLETE WIKI HIERARCHY TREE (${pages.length} pages/subpages) ===\n${indexLines}\n\n=== VERBATIM GDD SPECIFICATIONS (PRIMARY CONTEXT) ===\n${fullBody}${sumBody}`;
 }
 
-export async function proxyFetchUrl(url: string): Promise<string> {
-  const res = await fetch('/api/proxy-fetch', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url })
-  });
-
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || `Fetch failed with status ${res.status}`);
-  }
-
-  const data = await res.json();
-  return data.text || '';
-}
+// Alias kept for component call sites; implementation lives in services/ai.ts.
+export const proxyFetchUrl = fetchRemoteText;
 
 export async function requestAssistantResponse(
-  params: GenerateGeminiParams
-): Promise<GeminiResponse> {
+  params: GenerateAiParams
+): Promise<AiResponse> {
   const {
     actionType,
     prompt,
@@ -129,7 +116,6 @@ export async function requestAssistantResponse(
     targetEngine,
     notepadContent,
     chatHistory,
-    clientApiKey,
     imageBase64,
     imageMimeType
   } = params;
@@ -280,25 +266,13 @@ Paste into: <exact page title>
 ${wikiContext}${chatContextStr}${scratchpadStr}`;
   }
 
-  const res = await fetch('/api/gemini/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt: fullPrompt,
-      systemInstruction,
-      model: 'gemini-3.8-flash',
-      clientApiKey,
-      imageBase64,
-      imageMimeType
-    })
+  const data = await aiGenerate({
+    prompt: fullPrompt,
+    systemInstruction,
+    model: DEFAULT_MODEL,
+    imageBase64,
+    imageMimeType
   });
-
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || `Server responded with status ${res.status}`);
-  }
-
-  const data = await res.json();
   return {
     text: data.text || '',
     modelUsed: data.modelUsed
@@ -308,8 +282,7 @@ ${wikiContext}${chatContextStr}${scratchpadStr}`;
 // Build wiki pages and subpages from sources with intelligent GitHub Wiki inline links
 export async function buildWikiFromSources(
   sources: SourceItem[],
-  existingPages: WikiPage[],
-  replaceMode: boolean
+  existingPages: WikiPage[]
 ): Promise<{ title: string; content: string; parentTitle?: string }[]> {
   const combinedSourcesText = sources
     .map((s, idx) => `=== SOURCE ${idx + 1}: ${s.title} (${s.kind}) ===\n${s.text.slice(0, 12000)}`)
@@ -344,22 +317,11 @@ CRITICAL RULES FOR ORGANIZATION & GITHUB WIKI INLINE LINKING:
    - Known titles to align with: ${knownTitles || 'None yet'}
    - STRICT JSON ONLY. No prose or markdown fences around the JSON array.`;
 
-  const res = await fetch('/api/gemini/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt: `Transform these sources into structured, hierarchically organized game design pages with intelligent GitHub Wiki inline linking:\n\n${combinedSourcesText}`,
-      systemInstruction,
-      model: 'gemini-3.8-flash'
-    })
+  const data = await aiGenerate({
+    prompt: `Transform these sources into structured, hierarchically organized game design pages with intelligent GitHub Wiki inline linking:\n\n${combinedSourcesText}`,
+    systemInstruction,
+    model: DEFAULT_MODEL
   });
-
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error || 'Failed to build wiki from sources.');
-  }
-
-  const data = await res.json();
   let rawText = (data.text || '').trim();
 
   const fenceMatch = rawText.match(/```(?:json)?\s*\n([\s\S]*?)```/i);
@@ -442,27 +404,11 @@ Output a STRICT JSON object ONLY:
 - "error" = contradicted numbers or invented rules.
 Output STRICT JSON ONLY.`;
 
-  const res = await fetch('/api/gemini/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt: `WIKI PAGE TO CHECK:\n# ${page.title}\n${page.content}\n\nSOURCES (GROUND TRUTH):\n${sourcesText}`,
-      systemInstruction,
-      model: 'gemini-3.8-flash'
-    })
+  const data = await aiGenerate({
+    prompt: `WIKI PAGE TO CHECK:\n# ${page.title}\n${page.content}\n\nSOURCES (GROUND TRUTH):\n${sourcesText}`,
+    systemInstruction,
+    model: DEFAULT_MODEL
   });
-
-  if (!res.ok) {
-    return {
-      title: page.title,
-      status: 'warning',
-      issues: ['Verification server request failed.'],
-      unsupported: [],
-      missing: []
-    };
-  }
-
-  const data = await res.json();
   let rawText = (data.text || '').trim();
   const fence = rawText.match(/```(?:json)?\s*\n([\s\S]*?)```/i);
   if (fence) rawText = fence[1].trim();
@@ -512,19 +458,11 @@ CRITICAL RULES:
 - Output ONLY the corrected full page markdown starting with "# ${page.title}".
 - Do not output JSON, do not output explanations outside the page.`;
 
-  const res = await fetch('/api/gemini/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt: `ORIGINAL PAGE:\n# ${page.title}\n${page.content}\n\nFINDINGS TO RESOLVE:\n- ${findings}\n\nSOURCE EXCERPTS (GROUND TRUTH):\n${sourcesText}`,
-      systemInstruction,
-      model: 'gemini-3.8-flash'
-    })
+  const data = await aiGenerate({
+    prompt: `ORIGINAL PAGE:\n# ${page.title}\n${page.content}\n\nFINDINGS TO RESOLVE:\n- ${findings}\n\nSOURCE EXCERPTS (GROUND TRUTH):\n${sourcesText}`,
+    systemInstruction,
+    model: DEFAULT_MODEL
   });
-
-  if (!res.ok) throw new Error(`Failed to auto-fix ${page.title}.`);
-
-  const data = await res.json();
   let fixedText = (data.text || '').trim();
   const fence = fixedText.match(/```(?:markdown|md)?[^\S\n]*\n([\s\S]*?)```/i);
   if (fence) fixedText = fence[1].trim();
@@ -547,19 +485,11 @@ Read it and output STRICT JSON ONLY:
   "keywords": ["5-10 key terms, system names, mechanics, or stats"]
 }`;
 
-  const res = await fetch('/api/gemini/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt: `# ${page.title}\n${page.content.slice(0, 8000)}`,
-      systemInstruction,
-      model: 'gemini-3.8-flash'
-    })
+  const data = await aiGenerate({
+    prompt: `# ${page.title}\n${page.content.slice(0, 8000)}`,
+    systemInstruction,
+    model: DEFAULT_MODEL
   });
-
-  if (!res.ok) throw new Error('Failed to index page.');
-
-  const data = await res.json();
   let rawText = (data.text || '').trim();
   const fence = rawText.match(/```(?:json)?\s*\n([\s\S]*?)```/i);
   if (fence) rawText = fence[1].trim();
@@ -587,35 +517,21 @@ CRITICAL RULES:
 - Cut fluff and repetition only.
 - Output ONLY the rewritten markdown starting with "# ${page.title}". No JSON, no prose outside the page.`;
 
-  const res = await fetch('/api/gemini/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt: `# ${page.title}\n${page.content}`,
-      systemInstruction,
-      model: 'gemini-3.8-flash'
-    })
+  const data = await aiGenerate({
+    prompt: `# ${page.title}\n${page.content}`,
+    systemInstruction,
+    model: DEFAULT_MODEL
   });
-
-  if (!res.ok) throw new Error('Failed to condense page.');
-  const data = await res.json();
   return (data.text || '').trim();
 }
 
 // Auto-name project in 2-4 words from Home page
 export async function autoNameProject(homeContent: string, pageTitles: string[]): Promise<string> {
-  const res = await fetch('/api/gemini/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt: `Name a game project in 2-4 words based on this design document (plain title only, no quotes, no punctuation).
+  const data = await aiGenerate({
+    prompt: `Name a game project in 2-4 words based on this design document (plain title only, no quotes, no punctuation).
 Home Premise: ${homeContent.slice(0, 1000)}
 Pages: ${pageTitles.join(', ')}`,
-      model: 'gemini-3.8-flash'
-    })
+    model: DEFAULT_MODEL
   });
-
-  if (!res.ok) return 'New Game Project';
-  const data = await res.json();
   return (data.text || '').trim().replace(/^["']|["']$/g, '').slice(0, 40) || 'New Game Project';
 }

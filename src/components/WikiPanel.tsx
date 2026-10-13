@@ -31,7 +31,7 @@ import {
   WikiViewMode
 } from '../types';
 import { estimateTokens } from '../utils/tokenCounter';
-import { autoLinkWikiReferences } from '../services/geminiService';
+import { autoLinkWikiReferences } from '../services/aiService';
 import { SourceBuilderPanel } from './SourceBuilderPanel';
 
 interface WikiPanelProps {
@@ -392,7 +392,7 @@ export const WikiPanel: React.FC<WikiPanelProps> = ({
                 onClick={onCondensePage}
                 disabled={isCondensing}
                 className="bg-[#181c29] hover:bg-[#202638] text-zinc-300 hover:text-amber-300 border border-[#272e42] px-2.5 py-1.5 rounded-lg text-xs transition flex items-center space-x-1.5 cursor-pointer"
-                title="Condense page text with Gemini without losing numbers or facts"
+                title="Condense page text with the AI without losing numbers or facts"
               >
                 <Minimize2 className="w-3.5 h-3.5 text-amber-400" />
                 <span className="hidden xl:inline text-[11px]">Condense</span>

@@ -1,6 +1,8 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI } from '@google/genai';
+import { openAiGenerateWithFallback, DEFAULT_MODEL } from './shared/openai';
+import { AVAILABLE_ENGINES } from './shared/constants';
+import { htmlToPlainText } from './shared/htmlText';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -18,20 +20,13 @@ async function startServer() {
   app.use(express.json({ limit: '25mb' }));
 
   // Health and environment status
-  app.get('/api/status', (req, res) => {
+  app.get('/api/status', (_req, res) => {
     res.json({
       status: 'ok',
-      hasServerApiKey: Boolean(process.env.GEMINI_API_KEY),
-      defaultModel: 'gemini-3.8-flash',
-      availableEngines: [
-        'GDScript - Godot 4',
-        'C# - Unity',
-        'GDScript - Godot 3',
-        'C++ / Blueprints - Unreal Engine 5',
-        'TypeScript - Phaser 3',
-        'Python - Pygame 2',
-        'Rust - Bevy Engine'
-      ]
+      hasServerApiKey: Boolean(process.env.OPENAI_API_KEY),
+      provider: 'openai',
+      defaultModel: DEFAULT_MODEL,
+      availableEngines: AVAILABLE_ENGINES
     });
   });
 
@@ -54,18 +49,7 @@ async function startServer() {
         return res.status(response.status).json({ error: `Remote server responded with ${response.status} ${response.statusText}` });
       }
 
-      const text = await response.text();
-      // Strip scripts and styles if HTML is returned
-      let cleanText = text;
-      if (/<html|<!doctype/i.test(text.slice(0, 500))) {
-        cleanText = text
-          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-          .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/\n\s*\n/g, '\n\n')
-          .trim();
-      }
-
+      const cleanText = htmlToPlainText(await response.text());
       return res.json({ text: cleanText, length: cleanText.length });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to fetch remote URL.';
@@ -73,92 +57,40 @@ async function startServer() {
     }
   });
 
-  // Gemini API Proxy (Supports text & multimodal images)
-  app.post('/api/gemini/generate', async (req, res) => {
+  // OpenAI API Proxy (Supports text & multimodal images)
+  app.post('/api/openai/chat', async (req, res) => {
     const {
       systemInstruction,
       prompt,
-      model = 'gemini-3.8-flash',
+      model = DEFAULT_MODEL,
       clientApiKey,
       imageBase64,
       imageMimeType
     } = req.body;
 
-    const apiKey = clientApiKey || process.env.GEMINI_API_KEY;
+    const apiKey = clientApiKey || process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
       return res.status(400).json({
-        error: 'No Gemini API key available. Configure GEMINI_API_KEY in server secrets or provide one in workspace settings.'
+        error: 'No OpenAI API key available. Configure OPENAI_API_KEY in server secrets or provide one in workspace settings.'
       });
     }
 
-    const ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build'
-        }
-      }
-    });
-
-    // Structure contents: multimodal if image provided, otherwise plain prompt
-    type ContentPart = { text: string } | { inlineData: { mimeType: string; data: string } };
-    let contentsPayload: string | { parts: ContentPart[] } = prompt;
-    if (imageBase64) {
-      contentsPayload = {
-        parts: [
-          {
-            inlineData: {
-              mimeType: imageMimeType || 'image/png',
-              data: imageBase64
-            }
-          },
-          {
-            text: prompt || 'Analyze this game engine screenshot or error.'
-          }
-        ]
-      };
-    }
-
-    // Fallback models in priority order
-    const candidateModels = [
+    const outcome = await openAiGenerateWithFallback({
+      prompt,
+      systemInstruction,
       model,
-      'gemini-3.8-flash',
-      'gemini-3.1-pro-preview',
-      'gemini-3.1-flash-lite'
-    ].filter((m, idx, self) => self.indexOf(m) === idx);
+      apiKey,
+      imageBase64,
+      imageMimeType
+    });
 
-    let lastError: unknown = null;
-
-    for (const targetModel of candidateModels) {
-      try {
-        const response = await ai.models.generateContent({
-          model: targetModel,
-          contents: contentsPayload,
-          config: systemInstruction
-            ? {
-                systemInstruction: systemInstruction
-              }
-            : undefined
-        });
-
-        const text = response.text || '';
-        return res.json({
-          text,
-          modelUsed: targetModel
-        });
-      } catch (err: unknown) {
-        lastError = err;
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`Model ${targetModel} failed: ${msg}. Retrying fallback if available...`);
-      }
+    if (!outcome.ok) {
+      console.error('All OpenAI generation attempts failed:', outcome.error);
+      return res.status(500).json({ error: outcome.error || 'Failed to generate response from OpenAI.' });
     }
 
-    const errorMessage = lastError instanceof Error ? lastError.message : 'Failed to generate response from Gemini API.';
-    console.error('All model generation attempts failed:', lastError);
-    return res.status(500).json({
-      error: errorMessage
-    });
+    return res.json({ text: outcome.text, modelUsed: outcome.modelUsed });
   });
 
   if (!isProd) {

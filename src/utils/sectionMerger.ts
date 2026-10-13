@@ -4,7 +4,7 @@ export interface Section {
   body: string;
 }
 
-export function splitSections(md: string): Section[] {
+function splitSections(md: string): Section[] {
   const lines = String(md || '').split('\n');
   const secs: Section[] = [];
   let cur: Section = { heading: null, level: 0, body: '' };
@@ -127,7 +127,7 @@ export function parseWikiEditBlocks(text: string): { title: string; body: string
   return items;
 }
 
-export function extractFacts(md: string): { numbers: string[]; rows: string[]; links: string[] } {
+function extractFacts(md: string): { numbers: string[]; rows: string[]; links: string[] } {
   const t = String(md || '');
   const nums = [...t.matchAll(/(?<![\d.])\d[\d,]*(?:\.\d+)?/g)].map((m) => m[0].replace(/,/g, ''));
   const rows = t

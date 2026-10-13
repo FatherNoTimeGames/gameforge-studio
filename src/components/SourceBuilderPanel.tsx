@@ -15,7 +15,7 @@ import {
   Square
 } from 'lucide-react';
 import { AutoVerifyProgress, SourceItem, VerificationVerdict, WikiPage } from '../types';
-import { proxyFetchUrl } from '../services/geminiService';
+import { proxyFetchUrl } from '../services/aiService';
 
 interface SourceBuilderPanelProps {
   sources: SourceItem[];
@@ -306,7 +306,7 @@ export const SourceBuilderPanel: React.FC<SourceBuilderPanelProps> = ({
           {isBuilding ? (
             <>
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              <span>Building Wiki with Gemini 3.8 Flash...</span>
+              <span>Building Wiki with GPT-5 Mini...</span>
             </>
           ) : (
             <>

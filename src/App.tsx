@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { onBrowserChromeChange } from './utils/browserChrome';
 import { Header } from './components/Header';
 import { WikiPanel } from './components/WikiPanel';
 import { AssistantPanel } from './components/AssistantPanel';
@@ -80,6 +81,35 @@ export default function App() {
     return 52;
   });
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
+
+  // Detect browser chrome (address bar / tab strip) and window size so the app
+  // always fits exactly in the visible viewport. Only inner panels scroll;
+  // header, tabs, dropdowns, chat input and its buttons stay pinned.
+  const [appHeightPx, setAppHeightPx] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Debounced so the mobile address bar collapsing/expanding during a scroll
+    // gesture doesn't re-render the whole app on every pixel change.
+    let raf = 0;
+    const update = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        // Use the *visual* viewport height: it excludes the address bar when
+        // shown, so our layout never renders controls underneath it. This is
+        // what fixes top buttons being unusable/clipped in a regular web page.
+        const visual = window.visualViewport?.height ?? window.innerHeight;
+        setAppHeightPx(Math.round(visual));
+
+        // Expose as a CSS variable for the document/body sizing in index.css.
+        document.documentElement.style.setProperty('--app-viewport-height', `${Math.round(visual)}px`);
+      });
+    };
+    const unsubscribe = onBrowserChromeChange(update);
+    return () => {
+      unsubscribe();
+      cancelAnimationFrame(raf);
+    };
+  }, []);
 
   const handleMouseDownSplitter = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -791,7 +821,10 @@ Keep the exact same markdown structure, headings, and tables.`;
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#0b0d13] text-zinc-100 font-sans overflow-hidden">
+    <div
+      style={appHeightPx ? { height: `${appHeightPx}px` } : undefined}
+      className="h-[100dvh] w-screen flex flex-col bg-[#0b0d13] text-zinc-100 font-sans overflow-hidden"
+    >
       {/* Header */}
       <Header
         currentProject={currentProject}

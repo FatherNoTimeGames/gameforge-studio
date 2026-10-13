@@ -33,8 +33,9 @@ try {
   assert.equal((await (await call('/api/status', alice)).json()).aiMode, 'chatgpt');
   const input = { projects: [{ id: 'game', name: 'Smoke-test game', pages: [] }], activeProjectId: 'game', revision: 0 };
   assert.equal((await call('/api/workspace', alice, 'PUT', input)).status, 200);
-  assert.equal((await call('/api/workspace', alice, 'PUT', input)).status, 409);
-  assert.equal((await (await call('/api/workspace', alice)).json()).workspace.revision, 1);
+  assert.equal((await call('/api/workspace', alice, 'PUT', input)).status, 200);
+  assert.equal((await (await call('/api/workspace', alice)).json()).workspace.revision, 2);
+  assert.equal((await (await call('/api/workspace?revision=2', alice)).json()).unchanged, true);
   assert.equal((await (await call('/api/workspace', 'other-owner')).json()).workspace, null);
   const jobResponse = await call('/api/requests', alice, 'POST', { prompt: 'Explain dodge recovery.' });
   assert.equal(jobResponse.status, 200);
@@ -46,7 +47,7 @@ try {
   const completed = await (await rpc(alice, 'complete_request', { request_id: job.id, text: 'Leave a readable recovery window.' })).json();
   assert.equal(JSON.parse(completed.result.content[0].text).state, 'completed');
   assert.equal((await (await call(`/api/requests/${job.id}`, alice)).json()).text, 'Leave a readable recovery window.');
-  console.log('Built Worker smoke check passed: page, identity, D1/R2 saves, conflicts and MCP task round trip.');
+  console.log('Built Worker smoke check passed: page, identity, D1/R2 saves, multi-device overwrites and MCP task round trip.');
 } finally {
   server.kill('SIGTERM');
   const timeout = setTimeout(() => server.kill('SIGKILL'), 5000);

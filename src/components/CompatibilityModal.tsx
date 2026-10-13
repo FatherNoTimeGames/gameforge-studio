@@ -126,7 +126,7 @@ export const CompatibilityModal: React.FC<CompatibilityModalProps> = ({
                     <h4>1. Instant Auto-Save</h4>
                   </div>
                   <p className="text-zinc-400 leading-relaxed">
-                    Every keystroke in your GDD wiki and notepad is automatically debounced and saved into browser <code className="text-amber-300 font-mono">localStorage</code>. When durable hosting storage is configured, your workspace also saves to the server for access across devices. Wait for the saved indicator before closing the app.
+                    Your GDD wiki and notes save automatically. With cloud storage, phone and tablet edits update the latest workspace without a device-conflict warning. Unrelated edits stay intact; the last submitted edit wins on the same field. Open devices refresh about every two seconds, preserving unsent typing. Pending changes stay in this browser and retry on reconnecting. Wait for the saved indicator before closing the app.
                   </p>
                 </div>
 

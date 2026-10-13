@@ -58,8 +58,12 @@ export async function createApp() {
     durableStorage: Boolean(store),
     availableEngines: ['GDScript - Godot 4', 'C# - Unity', 'GDScript - Godot 3', 'C++ / Blueprints - Unreal Engine 5', 'TypeScript - Phaser 3', 'Python - Pygame 2', 'Rust - Bevy Engine'],
   }));
-  app.get('/api/workspace', async (_req, res, next) => {
-    try { res.json({ enabled: Boolean(store), workspace: store ? await store.load() : null }); }
+  app.get('/api/workspace', async (req, res, next) => {
+    try {
+      const workspace = store ? await store.load() : null;
+      const unchanged = workspace !== null && req.query.revision !== undefined && Number(req.query.revision) === workspace.revision;
+      res.json({ enabled: Boolean(store), workspace: unchanged ? undefined : workspace, unchanged, syncMode: 'merge' });
+    }
     catch (error) { next(error); }
   });
   app.put('/api/workspace', async (req, res, next) => {

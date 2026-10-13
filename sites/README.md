@@ -10,9 +10,14 @@ Node/static hosting targets remain available.
   trusted Sites user ID. The same account sees the same cloud workspace on a
   phone, tablet and computer.
 - Saves the complete project workspace in R2, with an atomic revision pointer
-  in D1. Concurrent device edits produce a conflict warning rather than silently
-  overwriting each other. Open the latest workspace before editing on a second
-  device; live collaborative editing is not implemented.
+  in D1. Phone and tablet saves both succeed: only changed fields/items are
+  submitted, so unrelated edits from another device remain. The last successful
+  submission wins when both devices change the same field. Deletions propagate;
+  stale edits do not resurrect a deleted item.
+- Checks for cloud updates every two seconds while the page is visible and when
+  returning to the app or reconnecting. Unsubmitted typing stays in place during
+  refreshes. Pending edits are backed up per account and retried automatically,
+  including after reopening the app. Each device keeps its own selected project.
 - Preserves the wiki, sources, concept/teacher chats, scratchpads, snapshots,
   histories, imports, exports, mobile panes and existing AI prompt workflows.
 - Exposes a private `/mcp` server with `list_requests`, `read_request` and
@@ -116,7 +121,7 @@ For schema changes, run `npm run db:generate`, inspect and commit the new SQL an
 metadata. Never rewrite migrations that have been published. CI verifies both
 hosting targets, the generated UI and server types, and the standalone export.
 It also runs the built Worker with real local D1/R2 bindings to check page
-rendering, identity isolation, save conflicts and an MCP task round trip.
+rendering, identity isolation, multi-device saves and an MCP task round trip.
 
 ## Limits and remaining deployment checks
 

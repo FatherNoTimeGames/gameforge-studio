@@ -7,6 +7,7 @@ import { loadWorkspace, saveWorkspace, createRequest, getRequest, requestResult,
 import type { StorageEnv } from '../sites/server/contracts.ts';
 import { generateWithChatGpt, REQUEST_EVENT } from '../src/services/chatgptBridge.ts';
 import { aiGenerate, setChatGptMode } from '../src/services/ai.ts';
+import { changedFields } from '../shared/workspaceSync.ts';
 
 function storage() {
   const db = new DatabaseSync(':memory:');
@@ -54,16 +55,28 @@ test('Sites identity and origin checks protect private workspace and requests', 
   assert.equal((await handleGameForge(request('/api/openai/chat', 'alice', 'POST', {}), env))?.status, 409);
 });
 
-test('competing device saves commit one revision and preserve the winning data', async () => {
+test('competing device saves both succeed and stale field edits merge into the latest workspace', async () => {
   const { env, blobs } = storage();
   const saves = await Promise.allSettled([saveWorkspace(env, 'alice', workspace()), saveWorkspace(env, 'alice', workspace())]);
-  assert.equal(saves.filter((r) => r.status === 'fulfilled').length, 1);
-  const failed = saves.find((r) => r.status === 'rejected') as PromiseRejectedResult;
-  assert.equal(failed.reason.status, 409);
-  assert.equal((await loadWorkspace(env, 'alice'))?.revision, 1);
-  assert.equal(blobs.size, 1, 'failed concurrent save retires its uncommitted blob');
-  await saveWorkspace(env, 'alice', workspace(1));
+  assert.equal(saves.filter((r) => r.status === 'fulfilled').length, 2);
   assert.equal((await loadWorkspace(env, 'alice'))?.revision, 2);
+  const baseline = workspace().projects;
+  const phone = structuredClone(baseline), tablet = structuredClone(baseline);
+  phone[0].name = 'Named on phone';
+  tablet[0].pages[0].content = 'Edited on tablet';
+  await Promise.all([
+    saveWorkspace(env, 'alice', { changes: changedFields(baseline, phone), activeProjectId: 'project' }),
+    saveWorkspace(env, 'alice', { changes: changedFields(baseline, tablet), activeProjectId: 'project' }),
+  ]);
+  let saved = await loadWorkspace(env, 'alice');
+  assert.equal(saved.projects[0].name, 'Named on phone');
+  assert.equal(saved.projects[0].pages[0].content, 'Edited on tablet');
+  phone[0].pages[0].content = 'Phone submits last';
+  await saveWorkspace(env, 'alice', { changes: changedFields(baseline, phone), activeProjectId: 'project' });
+  saved = await loadWorkspace(env, 'alice');
+  assert.equal(saved.projects[0].pages[0].content, 'Phone submits last');
+  assert.equal(saved.revision, 5);
+  assert.equal(await loadWorkspace(env, 'alice', 5), undefined, 'unchanged polls do not download workspace blobs');
   assert.equal(blobs.size, 1, 'ordinary autosaves do not accumulate workspace copies');
 });
 

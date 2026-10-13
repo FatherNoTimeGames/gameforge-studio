@@ -1,15 +1,17 @@
 import { HttpError, type StorageEnv, type Job } from './contracts.ts';
 import { createResponseBody } from '../../shared/openai.ts';
+import { workspaceFromSave } from '../../shared/workspaceSync.ts';
 
 async function readBlob(env: StorageEnv, key: string) {
   const object = await env.BUCKET.get(key);
   if (!object) throw new HttpError(503, 'Saved data is temporarily unavailable. Please retry.');
   return JSON.parse(await object.text());
 }
-export async function loadWorkspace(env: StorageEnv, owner: string) {
+export async function loadWorkspace(env: StorageEnv, owner: string, knownRevision?: number) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const row = await env.DB.prepare('SELECT revision, blob_key FROM workspaces WHERE owner = ?').bind(owner).first();
     if (!row) return null;
+    if (row.revision === knownRevision) return undefined;
     const object = await env.BUCKET.get(row.blob_key);
     // A successful save may have retired the old blob after this pointer read.
     if (object) return { ...JSON.parse(await object.text()), revision: row.revision };
@@ -17,31 +19,32 @@ export async function loadWorkspace(env: StorageEnv, owner: string) {
   throw new HttpError(503, 'Saved data is temporarily unavailable. Please retry.');
 }
 export async function saveWorkspace(env: StorageEnv, owner: string, input: any) {
-  if (!input || !Array.isArray(input.projects) || !input.projects.length || !Number.isSafeInteger(input.revision) || input.revision < 0 ||
-    typeof input.activeProjectId !== 'string' ||
-    input.projects.some((p: any) => !p || typeof p.id !== 'string' || typeof p.name !== 'string' || !Array.isArray(p.pages)) ||
-    !input.projects.some((p: any) => p.id === input.activeProjectId)) throw new HttpError(400, 'Invalid workspace.');
-  const prior = await env.DB.prepare('SELECT revision, blob_key FROM workspaces WHERE owner = ?').bind(owner).first();
-  if ((prior?.revision ?? 0) !== input.revision) throw new HttpError(409, 'This workspace changed on another device. Export your edits, then reload before saving.');
-  const key = `workspace/${crypto.randomUUID()}`;
-  const revision = input.revision + 1;
-  await env.BUCKET.put(key, JSON.stringify({ projects: input.projects, activeProjectId: input.activeProjectId }));
-  let changed = false;
-  try {
-    const result = prior
-      ? await env.DB.prepare('UPDATE workspaces SET revision = ?, blob_key = ?, updated_at = ? WHERE owner = ? AND revision = ?')
-        .bind(revision, key, Date.now(), owner, input.revision).run()
-      : await env.DB.prepare('INSERT INTO workspaces (owner, revision, blob_key, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(owner) DO NOTHING')
-        .bind(owner, revision, key, Date.now()).run();
-    changed = result.meta.changes === 1;
-  } finally {
-    if (!changed) await env.BUCKET.delete(key);
+  // Compare-and-swap is internal: concurrent callers retry against the newest
+  // workspace and apply their edits again, rather than returning device conflicts.
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const current = await loadWorkspace(env, owner);
+    let record;
+    try { record = workspaceFromSave(current, input); }
+    catch (error: any) { throw new HttpError(400, error.message); }
+    if (new TextEncoder().encode(JSON.stringify(record)).length > 8_000_000) throw new HttpError(413, 'Workspace exceeds the 8 MB cloud-save limit. Export a backup and reduce stored sources or snapshots.');
+    const prior = await env.DB.prepare('SELECT revision, blob_key FROM workspaces WHERE owner = ?').bind(owner).first();
+    if ((prior?.revision ?? 0) !== (current?.revision ?? 0)) continue;
+    const key = `workspace/${crypto.randomUUID()}`;
+    await env.BUCKET.put(key, JSON.stringify({ projects: record.projects, activeProjectId: record.activeProjectId }));
+    let changed = false;
+    try {
+      const result = prior
+        ? await env.DB.prepare('UPDATE workspaces SET revision = ?, blob_key = ?, updated_at = ? WHERE owner = ? AND revision = ?')
+          .bind(record.revision, key, Date.now(), owner, prior.revision).run()
+        : await env.DB.prepare('INSERT INTO workspaces (owner, revision, blob_key, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(owner) DO NOTHING')
+          .bind(owner, record.revision, key, Date.now()).run();
+      changed = result.meta.changes === 1;
+    } finally { if (!changed) await env.BUCKET.delete(key); }
+    if (!changed) continue;
+    if (prior?.blob_key) await env.BUCKET.delete(prior.blob_key).catch(() => {});
+    return record;
   }
-  if (!changed) throw new HttpError(409, 'This workspace changed on another device. Export your edits, then reload before saving.');
-  // The committed pointer is authoritative. Readers retry if the old blob retired.
-  // A cleanup failure must not report an already committed save as unsuccessful.
-  if (prior?.blob_key) await env.BUCKET.delete(prior.blob_key).catch(() => {});
-  return { revision };
+  throw new HttpError(503, 'The workspace is busy. Your device will retry its pending changes.');
 }
 
 export async function listRequests(env: StorageEnv, owner: string) {

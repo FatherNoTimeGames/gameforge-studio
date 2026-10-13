@@ -11,11 +11,19 @@ inference API key or paid-inference fallback. Conversation settings control the
 model and reasoning. The browser handoff is explicit and multi-step actions can
 require several tasks.
 
-Six additional tests cover private account isolation, competing device writes,
-durable task/reply recovery, native MCP calls, the browser handoff, and preventing
-paid fallback. CI also builds/typechecks the Vinext target and standalone export,
-checks migration drift, and runs the built Worker with local D1/R2 to check page
-rendering, identity, saves, conflicts and an MCP round trip. Live Sites identity,
+Phone/tablet saves now submit changed fields/items and merge into the newest
+workspace without device-conflict errors. The last successful submission wins
+on the same field; unrelated edits and concurrent chat/source additions remain.
+Visible devices poll every two seconds and refresh on focus/reconnection while
+keeping pending typing. Account-scoped pending edits survive reopening, and
+new project/page/chat/source/snapshot IDs use UUIDs to avoid device collisions.
+
+Tests cover private account isolation, concurrent device writes, durable
+task/reply recovery, native MCP calls, the browser handoff, preventing paid
+fallback, merging separate edits, last-submission overwrites, pending typing,
+deletions and no-op detection. CI also builds/typechecks the Vinext target and
+standalone export, checks migration drift, and runs the built Worker with local
+D1/R2 to check page rendering, identity, multi-device saves and an MCP round trip. Live Sites identity,
 plugin connection, a real ChatGPT answer and Android behavior still need private
 deployment checks. No Site has been registered or published.
 
@@ -36,7 +44,7 @@ The app has a React/Vite frontend and Express backend. The existing seven engine
 - Consolidated repeated API calls and error handling, memoized chat Markdown rendering, loaded ZIP generation only on demand, and removed unused dependencies and the obsolete Gemini lockfile.
 - Removed silent 12,000-character source and 20,000-character generated-page truncation. Larger requests now receive explicit size/incomplete-response errors instead of quietly losing material.
 - Full JSON and ZIP manifests include sources, both scratchpads, both chats, snapshots, hierarchy and history. Legacy combined notepad backups still import.
-- Added optional persistent server saves with atomic replacement and revision conflict protection. Retained the existing browser storage keys and browser backups. Save errors are visible. Corrupt browser data is not overwritten with the default project.
+- Added optional persistent server saves with atomic replacement. The current multi-device update merges changed fields/items and accepts stale-device saves, with the last submitted edit winning on the same field. Browser backups remain; save errors are visible.
 - Added production password protection, same-origin write checks, bounded AI concurrency, and public-only source retrieval with validated DNS pinned to the actual HTTP request. Render configuration and deployment instructions are included.
 
 ## Verification performed

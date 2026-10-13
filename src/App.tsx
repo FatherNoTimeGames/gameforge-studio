@@ -202,7 +202,7 @@ export default function App({ chatgptMode = false }: { chatgptMode?: boolean }) 
   );
 
   const handleNewProject = () => {
-    const newId = `proj-${Date.now()}`;
+    const newId = `proj-${crypto.randomUUID()}`;
     const newProj = createDefaultProject(newId, 'New Game Project');
     setProjects((prev) => [newProj, ...prev]);
     setActiveProjectId(newId);
@@ -225,7 +225,7 @@ export default function App({ chatgptMode = false }: { chatgptMode?: boolean }) 
 
   // Wiki Page Mutators (Supports Parent ID for Subpages)
   const handleCreatePage = (parentId?: string | null) => {
-    const newId = `page-${Date.now()}`;
+    const newId = `page-${crypto.randomUUID()}`;
     const parent = parentId ? currentProject.pages.find((p) => p.id === parentId) : null;
     const newPage: WikiPage = {
       id: newId,
@@ -309,7 +309,7 @@ export default function App({ chatgptMode = false }: { chatgptMode?: boolean }) 
   const handleAddSource = (source: Omit<SourceItem, 'id' | 'addedAt'>) => {
     const newSource: SourceItem = {
       ...source,
-      id: `src-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `src-${crypto.randomUUID()}`,
       addedAt: Date.now()
     };
     updateCurrentProject((p) => ({
@@ -363,7 +363,7 @@ export default function App({ chatgptMode = false }: { chatgptMode?: boolean }) 
             };
           } else {
             updatedPages.push({
-              id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              id: `page-${crypto.randomUUID()}`,
               title: gen.title,
               content: gen.content,
               parentId: null,
@@ -578,7 +578,7 @@ Keep the exact same markdown structure, headings, and tables.`;
   ) => {
     if (isAiLoading) return;
     const userMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: `msg-${crypto.randomUUID()}`,
       role: 'user',
       text: prompt,
       actionType,
@@ -613,7 +613,7 @@ Keep the exact same markdown structure, headings, and tables.`;
       });
 
       const assistantMsg: ChatMessage = {
-        id: result.requestId ? `chatgpt-${result.requestId}` : `msg-${Date.now() + 1}`,
+        id: result.requestId ? `chatgpt-${result.requestId}` : `msg-${crypto.randomUUID()}`,
         role: 'assistant',
         text: result.text,
         actionType,
@@ -628,7 +628,7 @@ Keep the exact same markdown structure, headings, and tables.`;
       }));
     } catch (err: any) {
       const errorMsg: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
+        id: `msg-${crypto.randomUUID()}`,
         role: 'assistant',
         text: `**Assistant Request Failed:** ${err.message || 'Check connection or model server availability.'}`,
         actionType,
@@ -648,7 +648,7 @@ Keep the exact same markdown structure, headings, and tables.`;
   // Snapshots Handlers
   const handleCreateSnapshot = (name: string) => {
     const snap: Snapshot = {
-      id: `snap-${Date.now()}`,
+      id: `snap-${crypto.randomUUID()}`,
       name,
       timestamp: Date.now(),
       pageCount: currentProject.pages.length,
@@ -690,7 +690,7 @@ Keep the exact same markdown structure, headings, and tables.`;
   };
 
   const handleImportProject = (importedData: any) => {
-    const newId = `proj-${Date.now()}`;
+    const newId = `proj-${crypto.randomUUID()}`;
     const newProj = importProject(importedData, newId);
     setProjects((prev) => [newProj, ...prev]);
     setActiveProjectId(newId);
@@ -842,7 +842,7 @@ Keep the exact same markdown structure, headings, and tables.`;
               updateCurrentProject((p) => ({ ...p, teacherNotepad: val }))
             }
             onPromoteNotepadToPage={(title, content, parentId) => {
-              const newId = `page-${Date.now()}`;
+              const newId = `page-${crypto.randomUUID()}`;
               const newPage: WikiPage = {
                 id: newId,
                 title,

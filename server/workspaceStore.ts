@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { ApiError } from './ai.ts';
+import { workspaceFromSave } from '../shared/workspaceSync.ts';
 
 export interface WorkspaceRecord {
   projects: unknown[];
@@ -19,15 +20,10 @@ export class WorkspaceStore {
   }
   save(input: any): Promise<WorkspaceRecord> {
     const operation = this.queue.then(async () => {
-      if (!input || !Array.isArray(input.projects) || !input.projects.length || typeof input.activeProjectId !== 'string' || !Number.isSafeInteger(input.revision)) {
-        throw new ApiError(400, 'Invalid workspace data.');
-      }
-      if (input.projects.some((p: any) => !p || typeof p.id !== 'string' || typeof p.name !== 'string' || !Array.isArray(p.pages)) || !input.projects.some((p: any) => p.id === input.activeProjectId)) {
-        throw new ApiError(400, 'Invalid workspace projects or active project.');
-      }
       const current = await this.load();
-      if (input.revision !== (current?.revision || 0)) throw new ApiError(409, 'This workspace changed in another tab or device. Export your current project, then reload to load the latest saved workspace.');
-      const record = { projects: input.projects, activeProjectId: input.activeProjectId, revision: input.revision + 1 };
+      let record: WorkspaceRecord;
+      try { record = workspaceFromSave(current, input); }
+      catch (error: any) { throw new ApiError(400, error.message); }
       await mkdir(this.directory, { recursive: true, mode: 0o700 });
       const target = path.join(this.directory, 'workspace.json');
       await writeFile(`${target}.tmp`, JSON.stringify(record), { mode: 0o600 });

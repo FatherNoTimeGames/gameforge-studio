@@ -85,7 +85,11 @@ export async function handleGameForge(request: Request, env: StorageEnv): Promis
     }
     if (url.pathname === '/api/status' && request.method === 'GET') return json({ status: 'ok', aiMode: 'chatgpt', durableStorage: true });
     if (url.pathname === '/api/workspace') {
-      if (request.method === 'GET') return json({ enabled: true, workspace: await loadWorkspace(env, owner), browserStorageKey: owner });
+      if (request.method === 'GET') {
+        const known = url.searchParams.has('revision') ? Number(url.searchParams.get('revision')) : undefined;
+        const workspace = await loadWorkspace(env, owner, known);
+        return json({ enabled: true, workspace, unchanged: workspace === undefined, syncMode: 'merge', browserStorageKey: owner });
+      }
       if (request.method === 'PUT') return json(await saveWorkspace(env, owner, await readJson(request, 8_000_000)));
     }
     if (url.pathname === '/api/requests') {

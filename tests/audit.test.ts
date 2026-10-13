@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { importProject, createProjectBackup } from '../src/utils/projectData.ts';
 import { pageWithContent, applyPageContent, assistantNotes, appendChatReply, canSetPageParent } from '../src/utils/projectEdits.ts';
 import { markdownExportFiles } from '../src/utils/exportPages.ts';
-import { parseWikiEditBlocks, mergeSections } from '../src/utils/sectionMerger.ts';
+import { parseWikiEditBlocks, mergeSections, checkCondenseOmissions } from '../src/utils/sectionMerger.ts';
 import { workspaceFromSave } from '../shared/workspaceSync.ts';
 
 const project = () => importProject({ name: 'Original', updatedAt: 100, pages: [{ id: 'home', title: 'Home', content: '# Home\nOriginal', lastModified: 100 }], conceptNotepad: 'Secret brainstorming', teacherNotepad: 'Private code' }, 'game');
@@ -33,6 +33,12 @@ test('typing preserves a useful pre-edit revision rather than the last five keys
   assert.equal(edited.history!.length, 1); assert.equal(edited.history![0].content, original.content);
   edited = pageWithContent(edited, 'Later editing session', 30_000);
   assert.equal(edited.history!.length, 2); assert.equal(edited.history![0].content, 'Typing 19');
+  edited = { ...edited, title: 'Renamed later', lastModified: 60_000 };
+  const later = pageWithContent(edited, 'After rename', 60_001);
+  assert.equal(later.history![0].content, 'Later editing session', 'title edits must not hide the last content checkpoint');
+});
+test('condense checks detect a lost numeric sign', () => {
+  assert.deepEqual(checkCondenseOmissions('Penalty: -12', 'Penalty: 12').missingNumbers, ['-12']);
 });
 test('a delayed AI edit applies only to its original project/page and refuses a deleted target', () => {
   const first = project(), second = { ...project(), id: 'other' };

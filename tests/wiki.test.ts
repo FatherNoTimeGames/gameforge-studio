@@ -50,6 +50,7 @@ test('all assistant actions and utility workflows use the OpenAI route and retai
     if (body.outputKind === 'wiki_build') text = JSON.stringify({ pages: [{ title: 'Combat', content: 'x'.repeat(21000), parentTitle: null }] });
     if (body.outputKind === 'verification') text = JSON.stringify({ status: 'ok', issues: [], unsupported: [], missing: [] });
     if (body.outputKind === 'index') text = JSON.stringify({ summary: 'Damage 12', keywords: ['Combat'] });
+    if (body.prompt.startsWith('ORIGINAL PAGE:')) text = '````markdown\n# Combat\n\n## Script\n```gdscript\nvar damage = 12\n```\n````';
     return Response.json({ text, modelUsed: 'gpt-6.1-sol' });
   };
   try {
@@ -63,7 +64,8 @@ test('all assistant actions and utility workflows use the OpenAI route and retai
     assert.match(requests.at(-1).prompt, /DO NOT OMIT/);
     const verdict = await verifyWikiAgainstSources(page, sources);
     assert.equal(verdict.status, 'ok');
-    await autoFixPageFromSources(page, verdict, sources);
+    const repaired = await autoFixPageFromSources(page, verdict, sources);
+    assert.match(repaired, /```gdscript\nvar damage = 12\n```/);
     await generateIndexForPage(page);
     await condenseWikiPage(page);
     await autoNameProject(page.content, [page.title]);

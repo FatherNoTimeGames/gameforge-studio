@@ -30,6 +30,7 @@ export interface WikiPage {
   parentId?: string | null;
   content: string;
   lastModified: number;
+  lastContentEditAt?: number;
   summary?: string;
   keywords?: string[];
   needsReview?: false | 'warning' | 'error';

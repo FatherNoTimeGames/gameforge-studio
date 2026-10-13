@@ -38,7 +38,7 @@ export const CondenseModal: React.FC<CondenseModalProps> = ({
                 Condense Preview: "{page.title}"
               </h2>
               <p className="text-xs text-zinc-400">
-                AI tightening preview with strict no-drop fact and numerical verification.
+                Compare the shorter draft with tracked numbers, table rows and links.
               </p>
             </div>
           </div>
@@ -76,7 +76,7 @@ export const CondenseModal: React.FC<CondenseModalProps> = ({
                 Found {omissions.counts.numbers} numbers and {omissions.counts.rows} table rows in original.{' '}
                 {hasDroppedFacts
                   ? `Missing ${omissions.missingNumbers.length} numbers: ${omissions.missingNumbers.join(', ')}`
-                  : 'Every single parameter value carried over.'}
+                  : 'Tracked number strings, table rows and links are present. Review their meaning before applying.'}
               </p>
             </div>
           </div>

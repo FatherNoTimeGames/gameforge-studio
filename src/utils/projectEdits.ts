@@ -3,8 +3,8 @@ import type { ChatMessage, ProjectData, WikiPage } from '../types/index.ts';
 export function pageWithContent(page: WikiPage, content: string, now = Date.now(), checkpoint = false): WikiPage {
   if (page.content === content) return page;
   const history = page.history ?? [];
-  const saveCheckpoint = checkpoint || !history.length || now - page.lastModified > 10_000;
-  return { ...page, content, summary: undefined, keywords: undefined, lastModified: now,
+  const saveCheckpoint = checkpoint || !history.length || !Number.isFinite(page.lastContentEditAt) || now - page.lastContentEditAt! > 10_000;
+  return { ...page, content, summary: undefined, keywords: undefined, lastModified: now, lastContentEditAt: now,
     history: saveCheckpoint ? [{ content: page.content, title: page.title, at: now }, ...history].slice(0, 5) : history };
 }
 export function applyPageContent(projects: ProjectData[], projectId: string, pageId: string, content: string) {

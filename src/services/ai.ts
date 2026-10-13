@@ -54,7 +54,7 @@ export async function aiGenerate(request: AiGenerateRequest): Promise<AiGenerate
 }
 
 export async function fetchRemoteText(url: string): Promise<string> {
-  const hasProxy = await checkProxy();
+  const hasProxy = subscriptionMode || await checkProxy();
   const response = hasProxy
     ? await accountFetch('/api/proxy-fetch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }), signal: AbortSignal.timeout(20_000) })
     : await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(20_000) });

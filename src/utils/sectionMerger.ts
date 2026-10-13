@@ -169,7 +169,7 @@ export function parseWikiEditBlocks(text: string): { title: string; body: string
 
 export function extractFacts(md: string): { numbers: string[]; rows: string[]; links: string[] } {
   const t = String(md || '');
-  const nums = [...t.matchAll(/(?<![\d.])\d[\d,]*(?:\.\d+)?/g)].map((m) => m[0].replace(/,/g, ''));
+  const nums = [...t.matchAll(/(?<![\d.])[-+]?\d[\d,]*(?:\.\d+)?/g)].map((m) => m[0].replace(/,/g, ''));
   const rows = t
     .split('\n')
     .map((l) => l.trim())

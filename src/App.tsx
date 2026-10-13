@@ -39,6 +39,7 @@ import {
 import { verifyAndRepairPages } from './services/verification';
 import { useWorkspace } from './hooks/useWorkspace';
 import { importProject } from './utils/projectData';
+import { setChatGptMode } from './services/ai';
 
 function createDefaultProject(id: string = 'proj-default', name: string = 'Project ChronoStrike'): ProjectData {
   return {
@@ -60,6 +61,7 @@ function createDefaultProject(id: string = 'proj-default', name: string = 'Proje
 }
 
 export default function App({ chatgptMode = false }: { chatgptMode?: boolean }) {
+  useEffect(() => { setChatGptMode(chatgptMode); }, [chatgptMode]);
   // Multi-Project State
   const { projects, setProjects, activeProjectId, setActiveProjectId, ready, durable, autoSaveStatus, saveError, retrySave } = useWorkspace(createDefaultProject(), chatgptMode);
 

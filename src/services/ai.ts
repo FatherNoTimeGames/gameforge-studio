@@ -16,6 +16,8 @@ export interface AiGenerateResult { text: string; modelUsed?: string; }
 
 let proxyCheck: Promise<boolean> | null = null;
 let chatgptMode = false;
+let subscriptionMode = false;
+export function setChatGptMode(enabled: boolean) { subscriptionMode = enabled; }
 async function checkProxy(): Promise<boolean> {
   if (proxyCheck) return proxyCheck;
   proxyCheck = (async () => {
@@ -31,6 +33,9 @@ async function checkProxy(): Promise<boolean> {
 }
 
 export async function aiGenerate(request: AiGenerateRequest): Promise<AiGenerateResult> {
+  // The Sites interface must never fall back to a stored browser API key,
+  // including when its status endpoint is unavailable or misconfigured.
+  if (subscriptionMode) return generateWithChatGpt(request);
   if (await checkProxy()) {
     if (chatgptMode) return generateWithChatGpt(request);
     const response = await fetch('/api/openai/chat', {

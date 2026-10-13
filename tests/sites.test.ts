@@ -6,6 +6,7 @@ import { handleGameForge } from '../sites/server/handler.ts';
 import { loadWorkspace, saveWorkspace, createRequest, getRequest, requestResult, completeRequest, consumeRequest, recoverRequest } from '../sites/server/store.ts';
 import type { StorageEnv } from '../sites/server/contracts.ts';
 import { generateWithChatGpt, REQUEST_EVENT } from '../src/services/chatgptBridge.ts';
+import { aiGenerate, setChatGptMode } from '../src/services/ai.ts';
 
 function storage() {
   const db = new DatabaseSync(':memory:');
@@ -130,5 +131,27 @@ test('the browser handoff receives a native ChatGPT answer and retains its origi
     globalThis.fetch = originalFetch;
     if (originalWindow === undefined) delete (globalThis as any).window;
     else (globalThis as any).window = originalWindow;
+  }
+});
+
+test('Sites mode cannot fall back to paid inference when app endpoints fail', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalStorage = (globalThis as any).localStorage;
+  (globalThis as any).localStorage = { getItem: () => 'previous-browser-api-key' };
+  let calls = 0;
+  globalThis.fetch = async (input) => {
+    calls++;
+    assert.equal(String(input), '/api/requests');
+    return Response.json({ error: 'Cloud tasks unavailable.' }, { status: 404 });
+  };
+  setChatGptMode(true);
+  try {
+    await assert.rejects(aiGenerate({ prompt: 'Review my game' }), /Cloud tasks unavailable/);
+    assert.equal(calls, 1);
+  } finally {
+    setChatGptMode(false);
+    globalThis.fetch = originalFetch;
+    if (originalStorage === undefined) delete (globalThis as any).localStorage;
+    else (globalThis as any).localStorage = originalStorage;
   }
 });

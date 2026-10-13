@@ -28,12 +28,14 @@ reads the saved task, generates its answer in that conversation, and saves the
 answer through `complete_request`. Return to GameForge; the waiting action uses
 the reply through its existing parsing/review workflow.
 
-Keep the app open during an action. If you close it, reopen the same project and
-retry the same action with the same inputs. A pending/completed request with the
-same prompt is reused. If the answer was already taken before the page closed,
-choose **Recover reply**, then retry the action. Replies remain viewable even
-after they were taken. If inputs changed, copy the saved reply for manual use;
-do not apply it to unrelated content. Multi-step workflows, including automatic
+Keep the app open during an action. For a concept/teacher chat interrupted by a
+reload, use **Restore chat reply** to add the saved reply to its original project
+and thread; sending another message changes the chat context and creates a new
+task. For utility actions, reopen the same project and retry the same action with
+the same inputs. A pending/completed request with the identical prompt is reused.
+If that answer was already taken, choose **Recover reply**, then retry the action.
+Replies remain viewable even after they were taken. If inputs changed, copy the
+saved reply for manual use; do not apply it to unrelated content. Multi-step workflows, including automatic
 repair and indexing several pages, can require several successive ChatGPT tasks.
 
 This is a deliberate handoff between the website and ChatGPT. A standalone

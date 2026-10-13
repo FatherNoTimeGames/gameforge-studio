@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { REQUEST_EVENT, requestApi, requestInstruction, stopWaiting, type ChatGptJob } from '../services/chatgptBridge';
 
-export function ChatGptTasks() {
+export function ChatGptTasks({ onRestoreChat }: { onRestoreChat: (result: any) => void }) {
   const [jobs, setJobs] = useState<ChatGptJob[]>([]);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState('');
@@ -54,6 +54,7 @@ export function ChatGptTasks() {
             {current?.state === 'pending' && <button className="underline" onClick={() => { stopWaiting(selected); setNotice('Task kept. Retry the same action to resume.'); }}>Stop waiting</button>}
             {current?.state !== 'pending' && <>
               <button className="underline" onClick={() => void run(async () => { setReply((await requestApi(`/${selected}`)).text ?? ''); })}>View saved reply</button>
+              <button className="underline" onClick={() => void run(async () => { onRestoreChat(await requestApi(`/${selected}`)); setNotice('Reply restored to its original project chat.'); })}>Restore chat reply</button>
               <button className="underline" onClick={() => void run(async () => { await requestApi(`/${selected}/recover`, { method: 'POST', body: '{}' }); setNotice('Reply ready again. Retry the same action in the same project to apply it.'); })}>Recover reply</button>
             </>}
             <button className="text-red-300 underline" onClick={() => { if (window.confirm('Delete this saved task and its reply?')) void run(async () => { stopWaiting(selected); await requestApi(`/${selected}`, { method: 'DELETE' }); setSelected(''); setReply(''); }); }}>Delete task</button>

@@ -5,7 +5,7 @@
     "esModuleInterop": true, "module": "esnext", "moduleResolution": "bundler",
     "resolveJsonModule": true, "isolatedModules": true, "jsx": "react-jsx",
     "allowImportingTsExtensions": true,
-    "types": ["node", "vite/client", "@cloudflare/workers-types"]
+    "types": ["node", "vite/client"]
   },
   "include": ["**/*.ts", "**/*.tsx", "**/*.mts"],
   "exclude": ["node_modules", "dist"]

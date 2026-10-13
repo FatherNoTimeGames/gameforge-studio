@@ -56,8 +56,11 @@ export async function getRequest(env: StorageEnv, owner: string, id: string): Pr
 export async function createRequest(env: StorageEnv, owner: string, input: unknown) {
   createResponseBody(input); // Reuse the existing prompt/image/format validation; no model call.
   const payload = input as Record<string, unknown>;
+  const context = payload.clientContext as any;
+  if (context !== undefined && (!context || typeof context.projectId !== 'string' || context.projectId.length > 200 || !['concept', 'teacher'].includes(context.thread) ||
+    !['discuss', 'recompile', 'balance', 'teach', 'wiki_edit', 'test_logic', 'apply_agreed'].includes(context.actionType))) throw new HttpError(400, 'Invalid chat destination.');
   const normalized = JSON.stringify({ prompt: payload.prompt, systemInstruction: payload.systemInstruction,
-    imageBase64: payload.imageBase64, imageMimeType: payload.imageMimeType, outputKind: payload.outputKind });
+    imageBase64: payload.imageBase64, imageMimeType: payload.imageMimeType, outputKind: payload.outputKind, clientContext: context });
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalized));
   const fingerprint = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
   const existing = await env.DB.prepare("SELECT * FROM requests WHERE owner = ? AND fingerprint = ? AND state IN ('pending', 'completed') ORDER BY created_at DESC LIMIT 1").bind(owner, fingerprint).first<Job>();
@@ -96,9 +99,10 @@ export async function completeRequest(env: StorageEnv, owner: string, id: string
     if (job.result_key && (await readBlob(env, job.result_key)).text === text) return { id, state: job.state };
     throw new HttpError(409, 'This request is no longer pending. Its saved answer has not been changed.');
   }
-  validateResult(text, (await requestPayload(env, job)).outputKind);
+  const payload = await requestPayload(env, job);
+  validateResult(text, payload.outputKind);
   const key = `request/${id}/result-${crypto.randomUUID()}`;
-  await env.BUCKET.put(key, JSON.stringify({ text, modelUsed: 'ChatGPT (conversation selection)' }));
+  await env.BUCKET.put(key, JSON.stringify({ text, modelUsed: 'ChatGPT (conversation selection)', clientContext: payload.clientContext }));
   let changed = false;
   try {
     const result = await env.DB.prepare("UPDATE requests SET state = 'completed', result_key = ? WHERE owner = ? AND id = ? AND state = 'pending'").bind(key, owner, id).run();

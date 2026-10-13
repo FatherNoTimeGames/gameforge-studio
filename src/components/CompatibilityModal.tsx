@@ -16,11 +16,13 @@ import { COMPATIBILITY_GUIDES, TARGET_ENGINES } from '../data/initialData';
 interface CompatibilityModalProps {
   isOpen: boolean;
   onClose: () => void;
+  chatgptMode?: boolean;
 }
 
 export const CompatibilityModal: React.FC<CompatibilityModalProps> = ({
   isOpen,
-  onClose
+  onClose,
+  chatgptMode = false
 }) => {
   const [activeTab, setActiveTab] = useState<'saving' | 'engines' | 'docs' | 'workflow'>('saving');
 
@@ -238,7 +240,7 @@ export const CompatibilityModal: React.FC<CompatibilityModalProps> = ({
                   How Grounding Works
                 </h3>
                 <p className="text-zinc-300 leading-relaxed">
-                  Unlike generic AI chatbots that guess, GameForge sends relevant wiki pages and summaries as project context to GPT-6.1 Sol with high reasoning and standard processing. AI verification still requires your review.
+                  {chatgptMode ? 'GameForge saves relevant wiki pages and summaries with each task. Copy its instruction into ChatGPT with the GameForge plugin connected, then return here for the reply. Your ChatGPT conversation controls the model and reasoning setting.' : 'GameForge sends relevant wiki pages and summaries as project context to GPT-6.1 Sol with high reasoning and standard processing.'} AI verification still requires your review.
                 </p>
               </div>
 

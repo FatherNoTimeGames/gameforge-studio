@@ -9,6 +9,7 @@ export interface GenerateAssistantParams {
   chatHistory?: ChatMessage[];
   imageBase64?: string;
   imageMimeType?: string;
+  clientContext?: { projectId: string; thread: 'concept' | 'teacher'; actionType: string };
 }
 
 export interface AssistantResponse {
@@ -271,6 +272,7 @@ ${wikiContext}${chatContextStr}${scratchpadStr}`;
 
   const data = await requestAi({
       prompt: fullPrompt,
+      clientContext: params.clientContext,
       systemInstruction,
       imageBase64,
       imageMimeType

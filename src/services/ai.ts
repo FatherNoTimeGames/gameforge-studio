@@ -10,6 +10,7 @@ export interface AiGenerateRequest {
   imageBase64?: string;
   imageMimeType?: string;
   outputKind?: 'wiki_build' | 'verification' | 'index';
+  clientContext?: { projectId: string; thread: 'concept' | 'teacher'; actionType: string };
 }
 export interface AiGenerateResult { text: string; modelUsed?: string; }
 

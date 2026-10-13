@@ -1,4 +1,5 @@
 import handler from 'vinext/server/fetch-handler';
+import type { ExecutionContext } from '@cloudflare/workers-types';
 import { handleGameForge } from '../server/handler.ts';
 
 export default {

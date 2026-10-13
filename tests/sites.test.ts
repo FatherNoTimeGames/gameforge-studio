@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { handleGameForge } from '../sites/server/handler.ts';
 import { loadWorkspace, saveWorkspace, createRequest, getRequest, requestResult, completeRequest, consumeRequest, recoverRequest } from '../sites/server/store.ts';
 import type { StorageEnv } from '../sites/server/contracts.ts';
+import { generateWithChatGpt, REQUEST_EVENT } from '../src/services/chatgptBridge.ts';
 
 function storage() {
   const db = new DatabaseSync(':memory:');
@@ -96,4 +97,35 @@ test('MCP reads a saved task and writes a validated reply without calling an inf
   const saved = await rpc('alice', 'tools/call', { name: 'complete_request', arguments: { request_id: job.id, text: 'Consider a longer recovery window.' } });
   assert.equal(JSON.parse(saved.result.content[0].text).state, 'completed');
   assert.equal((await getRequest(env, 'alice', job.id)).state, 'completed');
+});
+
+test('the browser handoff receives a native ChatGPT answer and retains its original chat destination', async () => {
+  const { env } = storage();
+  const originalFetch = globalThis.fetch;
+  const originalWindow = (globalThis as any).window;
+  const events = new EventTarget();
+  (globalThis as any).window = events;
+  let taskId = '';
+  const context = { projectId: 'project', thread: 'concept', actionType: 'discuss' };
+  events.addEventListener(REQUEST_EVENT, (event) => {
+    const id = (event as CustomEvent).detail;
+    if (id) { taskId = id; void completeRequest(env, 'alice', id, 'A complete game-design reply.'); }
+  });
+  globalThis.fetch = async (input, init) => {
+    assert.match(String(input), /^\/api\/requests/, 'the handoff uses app storage, never an external inference API');
+    const response = await handleGameForge(request(String(input), 'alice', init?.method ?? 'GET', init?.body ? JSON.parse(String(init.body)) : undefined), env);
+    assert.ok(response); return response;
+  };
+  try {
+    const answer = await generateWithChatGpt({ prompt: 'Review my design', clientContext: context as any });
+    assert.equal(answer.text, 'A complete game-design reply.');
+    const stored = await requestResult(env, await getRequest(env, 'alice', taskId));
+    assert.equal(stored.state, 'consumed');
+    assert.deepEqual(stored.clientContext, context);
+    assert.equal(stored.text, answer.text);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalWindow === undefined) delete (globalThis as any).window;
+    else (globalThis as any).window = originalWindow;
+  }
 });

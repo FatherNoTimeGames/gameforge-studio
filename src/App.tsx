@@ -598,6 +598,7 @@ Keep the exact same markdown structure, headings, and tables.`;
         rightTab === 'concept' ? currentProject.chatConcept : currentProject.chatTeacher;
 
       const result = await requestAssistantResponse({
+        clientContext: chatgptMode ? { projectId: currentProject.id, thread: rightTab === 'teacher' ? 'teacher' : 'concept', actionType } : undefined,
         actionType,
         prompt,
         pages: currentProject.pages,
@@ -700,7 +701,14 @@ Keep the exact same markdown structure, headings, and tables.`;
 
   return (
     <div style={appHeightPx ? { height: `${appHeightPx}px` } : undefined} className="h-dvh w-screen flex flex-col bg-[#0b0d13] text-zinc-100 font-sans overflow-hidden">
-      {chatgptMode && <ChatGptTasks />}
+      {chatgptMode && <ChatGptTasks onRestoreChat={(result) => {
+        const context = result.clientContext;
+        if (!context || !projects.some((p) => p.id === context.projectId)) throw new Error('This reply has no matching project chat. View and copy the saved reply instead.');
+        const message: ChatMessage = { id: `chatgpt-${result.id}`, role: 'assistant', text: result.text, actionType: context.actionType as ActionType, timestamp: Date.now(), modelUsed: result.modelUsed };
+        const key = context.thread === 'teacher' ? 'chatTeacher' : 'chatConcept';
+        setProjects((previous) => previous.map((project) => project.id !== context.projectId || project[key].some((m) => m.id === message.id)
+          ? project : { ...project, [key]: [...project[key], message], updatedAt: Date.now() }));
+      }} />}
       {saveError && (
         <div role="alert" className="shrink-0 bg-amber-950 text-amber-100 px-3 py-2 text-xs flex items-center gap-3">
           <span className="flex-1">{saveError}</span>
@@ -804,6 +812,7 @@ Keep the exact same markdown structure, headings, and tables.`;
           className={`workspace-pane ${mobilePane === 'assistant' ? 'flex' : 'hidden'} md:flex flex-col overflow-hidden min-w-0 md:min-w-[280px]`}
         >
           <AssistantPanel
+            chatgptMode={chatgptMode}
             activeTab={rightTab}
             onTabChange={setRightTab}
             targetEngine={currentEngine}
@@ -856,6 +865,7 @@ Keep the exact same markdown structure, headings, and tables.`;
 
       {/* Modals */}
       <CompatibilityModal
+        chatgptMode={chatgptMode}
         isOpen={isCompatibilityModalOpen}
         onClose={() => setIsCompatibilityModalOpen(false)}
       />

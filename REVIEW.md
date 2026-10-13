@@ -18,13 +18,13 @@ The app has a React/Vite frontend and Express backend. The existing seven engine
 
 ## Verification performed
 
-Sixteen regression tests pass when run directly with Node 24. They cover AI settings and response parsing, screenshot requests, all AI workflows, backup round trips, durable disk writes and stale revisions, auto-repair and stopping, context hierarchy, auto-linking, section/code preservation, and URL validation. `git diff --check` passes.
+Seventeen regression tests and two Express integration tests pass in GitHub Actions on Node 24. TypeScript checking and the production Vite build also pass. They cover AI settings and response parsing, screenshot requests, all AI workflows, backup round trips, durable disk writes and stale revisions, auto-repair and stopping, context hierarchy, auto-linking, section/code preservation, and URL validation. `git diff --check` passes.
 
-## Verification still needed
+## Verification limits
 
-Dependency installation was blocked by local network permissions. TypeScript checking, the production Vite build, and Express server integration tests have not run. `npm run check` and the included GitHub Actions workflow run all of these checks once dependencies can be installed. Browser QA and a real OpenAI call have not run; no API key was provided.
+Local dependency installation is still restricted, but GitHub Actions installed dependencies and successfully ran TypeScript checking, all 19 tests, and the production Vite build. `npm run check` and the included GitHub Actions workflow run all of these checks once dependencies can be installed. Browser QA and a real OpenAI call have not run; no API key was provided.
 
-Before GitHub App installation, the integration returned HTTP 403 (`Resource not accessible by integration`) when creating a tree, including a retry without the workflow file. After installation, branch writes became available. A review branch is being prepared against the newer main. No merge or hosting deployment has been made.
+Before GitHub App installation, the integration returned HTTP 403 (`Resource not accessible by integration`) when creating a tree, including a retry without the workflow file. After installation, write access became available and pull request #2 was created against the newer main: https://github.com/FatherNoTimeGames/gameforge-studio/pull/2. No merge or hosting deployment has been made.
 
 ## Remaining setup
 

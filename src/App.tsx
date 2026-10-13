@@ -10,6 +10,7 @@ import { PageHistoryModal } from './components/PageHistoryModal';
 import { CondenseModal } from './components/CondenseModal';
 import { SectionApplyModal } from './components/SectionApplyModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { ChatGptTasks } from './components/ChatGptTasks';
 import {
   ActionType,
   AutoVerifyProgress,
@@ -58,9 +59,9 @@ function createDefaultProject(id: string = 'proj-default', name: string = 'Proje
   };
 }
 
-export default function App() {
+export default function App({ chatgptMode = false }: { chatgptMode?: boolean }) {
   // Multi-Project State
-  const { projects, setProjects, activeProjectId, setActiveProjectId, ready, durable, autoSaveStatus, saveError, retrySave } = useWorkspace(createDefaultProject());
+  const { projects, setProjects, activeProjectId, setActiveProjectId, ready, durable, autoSaveStatus, saveError, retrySave } = useWorkspace(createDefaultProject(), chatgptMode);
 
   // UI Views (2-Pane Architecture with 3 Tabs each)
   const [mobilePane, setMobilePane] = useState<'wiki' | 'assistant'>('wiki');
@@ -699,6 +700,7 @@ Keep the exact same markdown structure, headings, and tables.`;
 
   return (
     <div style={appHeightPx ? { height: `${appHeightPx}px` } : undefined} className="h-dvh w-screen flex flex-col bg-[#0b0d13] text-zinc-100 font-sans overflow-hidden">
+      {chatgptMode && <ChatGptTasks />}
       {saveError && (
         <div role="alert" className="shrink-0 bg-amber-950 text-amber-100 px-3 py-2 text-xs flex items-center gap-3">
           <span className="flex-1">{saveError}</span>
@@ -712,6 +714,7 @@ Keep the exact same markdown structure, headings, and tables.`;
         currentProject={currentProject}
         projectActionsDisabled={isBusy || !ready}
         durableStorage={durable}
+        chatgptMode={chatgptMode}
         allProjects={projects}
         onSelectProject={setActiveProjectId}
         onNewProject={handleNewProject}

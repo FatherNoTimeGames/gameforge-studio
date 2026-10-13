@@ -2,7 +2,9 @@
 
 A private game design workspace with a wiki, source builder, concept assistant, engine-specific code teacher, screenshot support, page history, snapshots, and Markdown/JSON/ZIP exports.
 
-Every AI workflow uses **GPT-6.1 Sol** (`gpt-6.1-sol`) through OpenAI's Responses API with **high reasoning** and **standard processing** (`service_tier: "default"`). The server owns these settings and never silently switches to a different model. This connects to the API model, not your ChatGPT conversation, ChatGPT memory, or subscription. OpenAI API billing is separate.
+The new [ChatGPT Sites target](sites/README.md) hosts the existing interface, saves projects across devices, and connects AI tasks to a private GameForge plugin in ChatGPT. It uses your conversation's model selection and subscription limits, without an OpenAI API key. The website hands tasks to ChatGPT; it cannot automatically invoke subscription inference from a browser tab. See the linked setup guide before deployment.
+
+The original Node/static targets described below use **GPT-6.1 Sol** (`gpt-6.1-sol`) through OpenAI's Responses API with **high reasoning** and **standard processing** (`service_tier: "default"`). API billing is separate from a ChatGPT subscription. These targets remain available as alternatives.
 
 ## Run locally
 
@@ -21,7 +23,7 @@ npm run dev
 
 Open `http://localhost:3000`. `DATA_DIR=./data` saves the workspace on disk. Without `DATA_DIR`, auto-save uses browser storage only. Never expose a development server to the public internet.
 
-## Permanent hosting: Render
+## Optional API hosting: Render
 
 The included `render.yaml` runs the existing Node server and Vite frontend together at a stable HTTPS address. It configures one paid web-service instance with a 1 GB persistent disk. The configured service is currently $7/month plus $0.25/month for its 1 GB disk (about $7.25/month before usage extras and OpenAI API usage). Review Render's current pricing before creating the service; free ephemeral hosting does not provide the durable storage this setup needs.
 

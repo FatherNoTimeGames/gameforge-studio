@@ -1,6 +1,7 @@
 import { getEffectiveClientKey } from './config.ts';
 import { AI_CONFIG, generateResponse } from '../../shared/openai.ts';
 import { htmlToPlainText } from '../../shared/htmlText.ts';
+import { generateWithChatGpt } from './chatgptBridge.ts';
 
 export const DEFAULT_MODEL = AI_CONFIG.model;
 export interface AiGenerateRequest {
@@ -13,6 +14,7 @@ export interface AiGenerateRequest {
 export interface AiGenerateResult { text: string; modelUsed?: string; }
 
 let proxyCheck: Promise<boolean> | null = null;
+let chatgptMode = false;
 async function checkProxy(): Promise<boolean> {
   if (proxyCheck) return proxyCheck;
   proxyCheck = (async () => {
@@ -21,6 +23,7 @@ async function checkProxy(): Promise<boolean> {
     if (!response.ok) throw new Error('The workspace server is unavailable. Sign in or retry when it is back online.');
     if (!response.headers.get('content-type')?.includes('application/json')) return false;
     const data = await response.json();
+    chatgptMode = data?.aiMode === 'chatgpt';
     return data?.status === 'ok';
   })();
   try { return await proxyCheck; } catch (error) { proxyCheck = null; throw error; }
@@ -28,6 +31,7 @@ async function checkProxy(): Promise<boolean> {
 
 export async function aiGenerate(request: AiGenerateRequest): Promise<AiGenerateResult> {
   if (await checkProxy()) {
+    if (chatgptMode) return generateWithChatGpt(request);
     const response = await fetch('/api/openai/chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request), signal: AbortSignal.timeout(250_000),

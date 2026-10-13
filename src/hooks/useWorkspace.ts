@@ -6,12 +6,12 @@ const PROJECTS_KEY = 'gameforge_multi_projects_v4';
 const ACTIVE_KEY = 'gameforge_active_project_id_v4';
 type SaveStatus = 'saved' | 'saving' | 'dirty';
 
-function loadLocal(defaultProject: ProjectData) {
+function loadLocal(defaultProject: ProjectData, keys = { projects: PROJECTS_KEY, active: ACTIVE_KEY }) {
   try {
-    const parsed = JSON.parse(localStorage.getItem(PROJECTS_KEY) || 'null');
+    const parsed = JSON.parse(localStorage.getItem(keys.projects) || 'null');
     if (Array.isArray(parsed) && parsed.length) {
       const projects = parsed.map((p) => importProject(p, p.id));
-      const active = localStorage.getItem(ACTIVE_KEY);
+      const active = localStorage.getItem(keys.active);
       return { projects, activeProjectId: projects.some((p) => p.id === active) ? active! : projects[0].id, error: '' };
     }
   } catch {
@@ -20,8 +20,11 @@ function loadLocal(defaultProject: ProjectData) {
   return { projects: [defaultProject], activeProjectId: defaultProject.id, error: '' };
 }
 
-export function useWorkspace(defaultProject: ProjectData) {
-  const [initial] = useState(() => loadLocal(defaultProject));
+export function useWorkspace(defaultProject: ProjectData, accountStorage = false) {
+  const [initial] = useState(() => accountStorage
+    ? { projects: [defaultProject], activeProjectId: defaultProject.id, error: '' }
+    : loadLocal(defaultProject));
+  const storageKeys = useRef({ projects: PROJECTS_KEY, active: ACTIVE_KEY });
   const [projects, setProjects] = useState(initial.projects);
   const [activeProjectId, setActiveProjectId] = useState(initial.activeProjectId);
   const [ready, setReady] = useState(false);
@@ -44,6 +47,7 @@ export function useWorkspace(defaultProject: ProjectData) {
       try {
         const response = await fetch('/api/workspace', { signal: controller.signal });
         if (response.status === 404 || (response.ok && !response.headers.get('content-type')?.includes('application/json'))) {
+          if (accountStorage) throw new Error('GameForge cloud storage is unavailable. Reload before editing.');
           if (initial.error) throw new Error(initial.error);
           if (!cancelled) setReady(true);
           return;
@@ -51,6 +55,17 @@ export function useWorkspace(defaultProject: ProjectData) {
         if (!response.ok) throw new Error('Could not load the saved workspace. Your browser copy is available for export. Reload when the server is available.');
         const data = await response.json();
         if (cancelled) return;
+        if (accountStorage) {
+          if (typeof data.browserStorageKey !== 'string' || !data.enabled) throw new Error('Your private workspace could not be identified. Sign in again.');
+          const owner = encodeURIComponent(data.browserStorageKey);
+          storageKeys.current = { projects: `${PROJECTS_KEY}_${owner}`, active: `${ACTIVE_KEY}_${owner}` };
+          if (!data.workspace) {
+            const local = loadLocal(defaultProject, storageKeys.current);
+            if (local.error) throw new Error(local.error);
+            setProjects(local.projects);
+            setActiveProjectId(local.activeProjectId);
+          }
+        }
         setDurable(Boolean(data.enabled));
         if (initial.error && !data.workspace) throw new Error(initial.error);
         if (data.workspace) {
@@ -77,8 +92,8 @@ export function useWorkspace(defaultProject: ProjectData) {
       const snapshot = { projects, activeProjectId };
       let localError = '';
       try {
-        localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
-        localStorage.setItem(ACTIVE_KEY, activeProjectId);
+        localStorage.setItem(storageKeys.current.projects, JSON.stringify(projects));
+        localStorage.setItem(storageKeys.current.active, activeProjectId);
       } catch { localError = 'Browser backup is full or unavailable. Export a backup to protect your work.'; }
       if (!durable) {
         setSaveError(localError);
@@ -117,8 +132,8 @@ export function useWorkspace(defaultProject: ProjectData) {
     const flush = () => {
       if (!ready) return;
       try {
-        localStorage.setItem(PROJECTS_KEY, JSON.stringify(latest.current.projects));
-        localStorage.setItem(ACTIVE_KEY, latest.current.activeProjectId);
+        localStorage.setItem(storageKeys.current.projects, JSON.stringify(latest.current.projects));
+        localStorage.setItem(storageKeys.current.active, latest.current.activeProjectId);
       } catch { /* Save error is surfaced by the normal save path. */ }
     };
     const onVisibility = () => { if (document.visibilityState === 'hidden') flush(); };

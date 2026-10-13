@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: gameforge-studio
+    runtime: node
+    plan: 0.5c-512mb
+    numInstances: 1
+    buildCommand: npm ci --include=dev && npm run check
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: 24.19.0
+      - key: NODE_ENV
+        value: production
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: APP_USERNAME
+        value: owner
+      - key: APP_PASSWORD
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: DATA_DIR
+        value: /var/data/gameforge
+    disk:
+      name: gameforge-data
+      mountPath: /var/data
+      sizeGB: 1

@@ -18,8 +18,6 @@ export const SectionApplyModal: React.FC<SectionApplyModalProps> = ({
   pages,
   onApplyPlan
 }) => {
-  if (!isOpen) return null;
-
   const editBlocks = useMemo(() => {
     return parseWikiEditBlocks(rawAssistantText);
   }, [rawAssistantText]);
@@ -49,6 +47,8 @@ export const SectionApplyModal: React.FC<SectionApplyModalProps> = ({
       };
     });
   }, [editBlocks, pages]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
@@ -166,3 +166,4 @@ export const SectionApplyModal: React.FC<SectionApplyModalProps> = ({
     </div>
   );
 };
+

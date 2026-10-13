@@ -21,7 +21,7 @@ import {
   Link,
   Wrench
 } from 'lucide-react';
-import { marked } from 'marked';
+import { renderMarkdown } from '../utils/markdown';
 import {
   AutoVerifyProgress,
   LeftTab,
@@ -182,12 +182,13 @@ export const WikiPanel: React.FC<WikiPanelProps> = ({
           }
         }
 
+        const escapedLabel = displayLabel.replace(/[&<>"']/g, (c: string) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
         return `<button class="wiki-inline-link text-indigo-400 hover:text-indigo-300 font-semibold underline decoration-indigo-400/50 decoration-2 underline-offset-2 transition cursor-pointer" data-wikitarget="${encodeURIComponent(
           targetPageTitle
-        )}">${displayLabel}</button>`;
+        )}">${escapedLabel}</button>`;
       });
 
-      return marked.parse(raw);
+      return renderMarkdown(raw);
     } catch (e) {
       return '<p class="text-rose-400">Failed to render Markdown.</p>';
     }
@@ -392,7 +393,7 @@ export const WikiPanel: React.FC<WikiPanelProps> = ({
                 onClick={onCondensePage}
                 disabled={isCondensing}
                 className="bg-[#181c29] hover:bg-[#202638] text-zinc-300 hover:text-amber-300 border border-[#272e42] px-2.5 py-1.5 rounded-lg text-xs transition flex items-center space-x-1.5 cursor-pointer"
-                title="Condense page text with the AI without losing numbers or facts"
+                title="Condense page text with GPT-6.1 Sol without losing numbers or facts"
               >
                 <Minimize2 className="w-3.5 h-3.5 text-amber-400" />
                 <span className="hidden xl:inline text-[11px]">Condense</span>
@@ -734,12 +735,12 @@ export const WikiPanel: React.FC<WikiPanelProps> = ({
                     />
                   </div>
                   <div className="h-full bg-[#0a0c12] border border-[#212638] rounded-xl p-4 overflow-y-auto markdown-body">
-                    <div dangerouslySetInnerHTML={{ __html: parsedReaderHtml }} />
+                    <div onClick={handleReaderClick} dangerouslySetInnerHTML={{ __html: parsedReaderHtml }} />
                   </div>
                 </div>
               ) : viewMode === 'preview' ? (
                 <div className="h-full bg-[#0a0c12] border border-[#212638] rounded-xl p-4 overflow-y-auto markdown-body flex-1">
-                  <div dangerouslySetInnerHTML={{ __html: parsedReaderHtml }} />
+                  <div onClick={handleReaderClick} dangerouslySetInnerHTML={{ __html: parsedReaderHtml }} />
                 </div>
               ) : (
                 <div className="h-full bg-[#0a0c12] border border-[#212638] rounded-xl overflow-hidden flex flex-col flex-1">
@@ -786,3 +787,4 @@ export const WikiPanel: React.FC<WikiPanelProps> = ({
     </div>
   );
 };
+

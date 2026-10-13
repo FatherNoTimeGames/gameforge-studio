@@ -20,7 +20,7 @@ import {
   ChevronDown,
   CornerDownRight
 } from 'lucide-react';
-import { marked } from 'marked';
+import { renderMarkdown } from '../utils/markdown';
 import { ActionType, ChatMessage, RightTab, TargetEngine, WikiPage } from '../types';
 import { calculateTotalWikiTokens, estimateTokens } from '../utils/tokenCounter';
 
@@ -91,6 +91,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeChat = activeTab === 'concept' ? chatConcept : chatTeacher;
+  const renderedMessages = useMemo(() => new Map(activeChat.map((msg) => [msg.id, renderMarkdown(msg.text || '')])), [activeChat]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -119,6 +120,11 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.type) || file.size > 10 * 1024 * 1024) {
+      alert('Choose a PNG, JPEG, WebP, or GIF screenshot under 10 MB.');
+      e.target.value = '';
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -147,7 +153,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
     return calculateTotalWikiTokens(pages);
   }, [pages]);
 
-  const TOKEN_BUDGET = 8000;
+  const TOKEN_BUDGET = 1_050_000;
   const budgetPercent = Math.min(100, Math.round((totalTokens / TOKEN_BUDGET) * 100));
 
   const filteredContextPages = useMemo(() => {
@@ -252,7 +258,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
             </div>
 
             <p className="text-[11px] text-zinc-400 leading-relaxed">
-              Every prompt sent to the Concept Assistant or Code Teacher is preceded by your full active wiki pages as ground truth.
+              Every prompt sent to the Concept Assistant or Code Teacher is grounded in the Home page, relevant pages, and summaries of other wiki pages.
             </p>
 
             {/* Token Budget Gauge */}
@@ -452,7 +458,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
             {/* Chat Messages */}
             {activeChat.map((msg) => {
               const isUser = msg.role === 'user';
-              const parsedHtml = marked.parse(msg.text || '');
+              const parsedHtml = renderedMessages.get(msg.id) || '';
               const hasAgreementCheck =
                 !isUser && (AGREE_RE.test(msg.text) || msg.actionType === 'wiki_edit');
 
@@ -545,7 +551,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
           {isLoading && (
             <div className="absolute bottom-28 left-6 bg-[#181c2b] border border-indigo-500/40 px-4 py-2 rounded-xl text-xs flex items-center space-x-2 shadow-xl text-indigo-300 z-10 animate-pulse">
               <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
-              <span>Consulting GDD Wiki context with GPT-5 Mini...</span>
+              <span>Consulting GDD Wiki context with GPT-6.1 Sol...</span>
             </div>
           )}
 
@@ -693,3 +699,4 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
     </section>
   );
 };
+

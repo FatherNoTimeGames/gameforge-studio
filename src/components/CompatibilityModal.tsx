@@ -109,10 +109,10 @@ export const CompatibilityModal: React.FC<CompatibilityModalProps> = ({
                 <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
                 <div>
                   <h3 className="font-bold text-sm text-zinc-100 mb-1">
-                    Your Work Is 100% Safe and Persisted
+                    Save, Restore, and Back Up Your Work
                   </h3>
                   <p className="text-zinc-300">
-                    You never have to worry about losing progress. GameForge uses a 3-layer persistence model designed for game developers:
+                    Auto-save, snapshots, and full exports help protect your work. Keep downloaded backups for important milestones.
                   </p>
                 </div>
               </div>
@@ -124,7 +124,7 @@ export const CompatibilityModal: React.FC<CompatibilityModalProps> = ({
                     <h4>1. Instant Auto-Save</h4>
                   </div>
                   <p className="text-zinc-400 leading-relaxed">
-                    Every keystroke in your GDD wiki and notepad is automatically debounced and saved into browser <code className="text-amber-300 font-mono">localStorage</code>. Reloading the page or closing the tab preserves everything.
+                    Every keystroke in your GDD wiki and notepad is automatically debounced and saved into browser <code className="text-amber-300 font-mono">localStorage</code>. When durable hosting storage is configured, your workspace also saves to the server for access across devices. Wait for the saved indicator before closing the app.
                   </p>
                 </div>
 
@@ -238,7 +238,7 @@ export const CompatibilityModal: React.FC<CompatibilityModalProps> = ({
                   How Grounding Works
                 </h3>
                 <p className="text-zinc-300 leading-relaxed">
-                  Unlike generic AI chatbots that guess, GameForge passes all active wiki pages as <strong>Ground Truth</strong> directly to GPT-5 Mini.
+                  Unlike generic AI chatbots that guess, GameForge sends relevant wiki pages and summaries as project context to GPT-6.1 Sol with high reasoning and standard processing. AI verification still requires your review.
                 </p>
               </div>
 
@@ -281,3 +281,4 @@ export const CompatibilityModal: React.FC<CompatibilityModalProps> = ({
     </div>
   );
 };
+

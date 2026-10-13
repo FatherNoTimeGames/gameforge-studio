@@ -27,7 +27,6 @@ import {
 } from './types';
 import { INITIAL_WIKI_PAGES, TARGET_ENGINES } from './data/initialData';
 import {
-  autoFixPageFromSources,
   autoNameProject,
   buildWikiFromSources,
   condenseWikiPage,
@@ -36,8 +35,9 @@ import {
   verifyWikiAgainstSources
 } from './services/aiService';
 
-const STORAGE_PROJECTS_KEY = 'gameforge_multi_projects_v4';
-const STORAGE_ACTIVE_ID_KEY = 'gameforge_active_project_id_v4';
+import { verifyAndRepairPages } from './services/verification';
+import { useWorkspace } from './hooks/useWorkspace';
+import { importProject } from './utils/projectData';
 
 function createDefaultProject(id: string = 'proj-default', name: string = 'Project ChronoStrike'): ProjectData {
   return {
@@ -60,10 +60,10 @@ function createDefaultProject(id: string = 'proj-default', name: string = 'Proje
 
 export default function App() {
   // Multi-Project State
-  const [projects, setProjects] = useState<ProjectData[]>(() => [createDefaultProject()]);
-  const [activeProjectId, setActiveProjectId] = useState<string>('proj-default');
+  const { projects, setProjects, activeProjectId, setActiveProjectId, ready, durable, autoSaveStatus, saveError, retrySave } = useWorkspace(createDefaultProject());
 
   // UI Views (2-Pane Architecture with 3 Tabs each)
+  const [mobilePane, setMobilePane] = useState<'wiki' | 'assistant'>('wiki');
   const [leftTab, setLeftTab] = useState<LeftTab>('wiki');
   const [wikiViewMode, setWikiViewMode] = useState<WikiViewMode>('split');
   const [rightTab, setRightTab] = useState<RightTab>('concept');
@@ -141,7 +141,6 @@ export default function App() {
   }, [isDraggingSplitter, splitPercent]);
 
   // Status & Loaders
-  const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'dirty'>('saved');
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
   const [isBuildingSources, setIsBuildingSources] = useState<boolean>(false);
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
@@ -182,59 +181,6 @@ export default function App() {
     TARGET_ENGINES.find((e) => e.id === currentProject.targetEngineId) || TARGET_ENGINES[0];
   const activeWikiPage =
     currentProject.pages.find((p) => p.id === activePageId) || currentProject.pages[0] || null;
-
-  // Load from LocalStorage on mount
-  useEffect(() => {
-    try {
-      const storedProjects = localStorage.getItem(STORAGE_PROJECTS_KEY);
-      const storedActiveId = localStorage.getItem(STORAGE_ACTIVE_ID_KEY);
-
-      if (storedProjects) {
-        const parsed = JSON.parse(storedProjects);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Backward compatibility check for separate scratchpads
-          const migrated = parsed.map((p: any) => ({
-            ...p,
-            conceptNotepad: p.conceptNotepad || p.notepad || '# Concept Notes\n',
-            teacherNotepad: p.teacherNotepad || '# Code Notes\n'
-          }));
-          setProjects(migrated);
-          if (storedActiveId && migrated.some((p: any) => p.id === storedActiveId)) {
-            setActiveProjectId(storedActiveId);
-          } else {
-            setActiveProjectId(migrated[0].id);
-          }
-          if (migrated[0].pages?.length > 0) {
-            setActivePageId(migrated[0].pages[0].id);
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to load projects from localStorage:', e);
-    }
-  }, []);
-
-  // Debounced auto-save
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const triggerSave = useCallback(() => {
-    setAutoSaveStatus('saving');
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-
-    saveTimeoutRef.current = setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_PROJECTS_KEY, JSON.stringify(projects));
-        localStorage.setItem(STORAGE_ACTIVE_ID_KEY, activeProjectId);
-        setAutoSaveStatus('saved');
-      } catch (e) {
-        console.error('LocalStorage write failed:', e);
-      }
-    }, 450);
-  }, [projects, activeProjectId]);
-
-  useEffect(() => {
-    triggerSave();
-  }, [projects, activeProjectId, triggerSave]);
 
   // Project Mutators
   const updateCurrentProject = useCallback(
@@ -326,6 +272,8 @@ export default function App() {
           return {
             ...p,
             content,
+            summary: undefined,
+            keywords: undefined,
             history: history.slice(0, 5),
             lastModified: Date.now()
           };
@@ -386,11 +334,12 @@ export default function App() {
     try {
       const generatedPages = await buildWikiFromSources(
         currentProject.sources,
-        currentProject.pages
+        currentProject.pages,
+        replaceMode
       );
 
       updateCurrentProject((proj) => {
-        let updatedPages = replaceMode ? [] : [...proj.pages];
+        let updatedPages: WikiPage[] = replaceMode ? [] : proj.pages.map((p) => ({ ...p }));
 
         // First pass: add parent pages
         for (const gen of generatedPages) {
@@ -404,6 +353,8 @@ export default function App() {
             updatedPages[existingIdx] = {
               ...old,
               content: gen.content,
+              summary: undefined,
+              keywords: undefined,
               history: history.slice(0, 5),
               lastModified: Date.now()
             };
@@ -444,8 +395,8 @@ export default function App() {
         const home = generatedPages.find((p) => p.title.toLowerCase() === 'home');
         if (home) {
           autoNameProject(home.content, generatedPages.map((p) => p.title)).then((newName) => {
-            if (newName) updateCurrentProject((p) => ({ ...p, name: newName }));
-          });
+            if (newName) updateCurrentProject((p) => p.manualName ? p : ({ ...p, name: newName }));
+          }).catch((error) => console.warn('Project naming failed:', error.message));
         }
       }
     } catch (e: any) {
@@ -479,9 +430,9 @@ export default function App() {
   const handleAutoVerifyAndFixLoop = async () => {
     if (currentProject.sources.length === 0 || currentProject.pages.length === 0) return;
 
+    if (autoVerifyProgress.isRunning) return;
     autoVerifyStopRef.current = false;
     const MAX_PASSES = 4;
-    let issuesResolved = 0;
 
     setAutoVerifyProgress({
       isRunning: true,
@@ -494,86 +445,21 @@ export default function App() {
     });
 
     try {
-      for (let pass = 1; pass <= MAX_PASSES; pass++) {
-        if (autoVerifyStopRef.current) break;
-
-        setAutoVerifyProgress((prev) => ({
-          ...prev,
-          currentPass: pass,
-          statusMessage: `Pass ${pass}/${MAX_PASSES}: Fact-checking ${currentProject.pages.length} pages/subpages...`
-        }));
-
-        const results: VerificationVerdict[] = [];
-        for (const p of currentProject.pages) {
-          if (autoVerifyStopRef.current) break;
-          const verdict = await verifyWikiAgainstSources(p, currentProject.sources);
-          results.push(verdict);
-        }
-
-        if (autoVerifyStopRef.current) break;
-
-        setVerdicts(results);
-        const flawed = results.filter((r) => r.status !== 'ok');
-        const cleanCount = results.length - flawed.length;
-
-        setAutoVerifyProgress((prev) => ({
-          ...prev,
-          cleanPagesCount: cleanCount,
-          totalPagesCount: results.length
-        }));
-
-        if (flawed.length === 0) {
-          setAutoVerifyProgress((prev) => ({
-            ...prev,
-            statusMessage: `Success! All ${results.length} pages are 100% factual and verified! 🎉`,
-            isRunning: false
-          }));
-          return;
-        }
-
-        if (pass === MAX_PASSES) {
-          setAutoVerifyProgress((prev) => ({
-            ...prev,
-            statusMessage: `Finished ${MAX_PASSES} passes. ${cleanCount}/${results.length} clean (${flawed.length} remaining).`,
-            isRunning: false
-          }));
-          return;
-        }
-
-        setAutoVerifyProgress((prev) => ({
-          ...prev,
-          statusMessage: `Pass ${pass}/${MAX_PASSES}: Found ${flawed.length} flawed pages. Auto-repairing with the AI...`
-        }));
-
-        for (const flaw of flawed) {
-          if (autoVerifyStopRef.current) break;
-          const targetPage = currentProject.pages.find((p) => p.title === flaw.title);
-          if (!targetPage) continue;
-
-          try {
-            const fixedContent = await autoFixPageFromSources(
-              targetPage,
-              flaw,
-              currentProject.sources
-            );
-
-            handleUpdateContent(targetPage.id, fixedContent);
-            issuesResolved += flaw.issues.length + flaw.unsupported.length;
-
-            setAutoVerifyProgress((prev) => ({
-              ...prev,
-              issuesResolvedTotal: issuesResolved,
-              statusMessage: `Pass ${pass}/${MAX_PASSES}: Repaired "${flaw.title}". Re-verifying...`
-            }));
-          } catch (err) {
-            console.warn(`Failed to fix ${flaw.title}:`, err);
-          }
-        }
-      }
+      await verifyAndRepairPages({
+        pages: currentProject.pages,
+        sources: currentProject.sources,
+        maxPasses: MAX_PASSES,
+        shouldStop: () => autoVerifyStopRef.current,
+        onVerdicts: setVerdicts,
+        onRepair: (page, content) => handleUpdateContent(page.id, content),
+        onProgress: (pass, message, clean, resolved) => setAutoVerifyProgress((prev) => ({
+          ...prev, currentPass: pass, statusMessage: message, cleanPagesCount: clean, issuesResolvedTotal: resolved,
+        })),
+      });
     } catch (err: any) {
       alert(`Auto-Verify Loop error: ${err.message}`);
     } finally {
-      setAutoVerifyProgress((prev) => ({ ...prev, isRunning: false }));
+      setAutoVerifyProgress((prev) => ({ ...prev, isRunning: false, statusMessage: autoVerifyStopRef.current ? 'Stopped. Applied repairs are saved in revision history.' : prev.statusMessage }));
     }
   };
 
@@ -581,8 +467,7 @@ export default function App() {
     autoVerifyStopRef.current = true;
     setAutoVerifyProgress((prev) => ({
       ...prev,
-      isRunning: false,
-      statusMessage: 'Auto-Verify loop paused by user.'
+      statusMessage: 'Stopping after the current request finishes...'
     }));
   };
 
@@ -668,6 +553,8 @@ Keep the exact same markdown structure, headings, and tables.`;
               return {
                 ...p,
                 content: pl.newContent,
+                summary: undefined,
+                keywords: undefined,
                 history: history.slice(0, 5),
                 lastModified: Date.now()
               };
@@ -686,6 +573,7 @@ Keep the exact same markdown structure, headings, and tables.`;
     prompt: string,
     image?: { base64: string; mimeType: string; name: string }
   ) => {
+    if (isAiLoading) return;
     const userMsg: ChatMessage = {
       id: `msg-${Date.now()}`,
       role: 'user',
@@ -780,10 +668,10 @@ Keep the exact same markdown structure, headings, and tables.`;
       ...p,
       name: snap.state.projectName,
       targetEngineId: snap.state.targetEngineId,
-      pages: snap.state.pages,
+      pages: structuredClone(snap.state.pages),
       conceptNotepad: snap.state.conceptNotepad || '',
       teacherNotepad: snap.state.teacherNotepad || '',
-      sources: snap.state.sources || []
+      sources: structuredClone(snap.state.sources || [])
     }));
     if (snap.state.pages.length > 0) {
       setActivePageId(snap.state.pages[0].id);
@@ -799,20 +687,7 @@ Keep the exact same markdown structure, headings, and tables.`;
 
   const handleImportProject = (importedData: any) => {
     const newId = `proj-${Date.now()}`;
-    const newProj: ProjectData = {
-      id: newId,
-      name: importedData.projectName || importedData.name || 'Imported Project',
-      manualName: true,
-      updatedAt: Date.now(),
-      targetEngineId: importedData.targetEngineId || 'godot4',
-      pages: Array.isArray(importedData.pages) ? importedData.pages : INITIAL_WIKI_PAGES,
-      sources: Array.isArray(importedData.sources) ? importedData.sources : [],
-      conceptNotepad: importedData.conceptNotepad || importedData.notepad || '',
-      teacherNotepad: importedData.teacherNotepad || '',
-      chatConcept: [],
-      chatTeacher: [],
-      snapshots: []
-    };
+    const newProj = importProject(importedData, newId);
     setProjects((prev) => [newProj, ...prev]);
     setActiveProjectId(newId);
     if (newProj.pages.length > 0) {
@@ -820,14 +695,23 @@ Keep the exact same markdown structure, headings, and tables.`;
     }
   };
 
+  const isBusy = isAiLoading || isBuildingSources || isVerifying || isIndexing || isCondensing || autoVerifyProgress.isRunning;
+
   return (
-    <div
-      style={appHeightPx ? { height: `${appHeightPx}px` } : undefined}
-      className="h-[100dvh] w-screen flex flex-col bg-[#0b0d13] text-zinc-100 font-sans overflow-hidden"
-    >
+    <div style={appHeightPx ? { height: `${appHeightPx}px` } : undefined} className="h-dvh w-screen flex flex-col bg-[#0b0d13] text-zinc-100 font-sans overflow-hidden">
+      {saveError && (
+        <div role="alert" className="shrink-0 bg-amber-950 text-amber-100 px-3 py-2 text-xs flex items-center gap-3">
+          <span className="flex-1">{saveError}</span>
+          {ready && <button onClick={retrySave} className="underline">Retry save</button>}
+          <button onClick={() => setIsExportModalOpen(true)} className="underline">Export backup</button>
+        </div>
+      )}
+      {!ready && <div role="status" className="shrink-0 px-3 py-2 text-xs text-zinc-400">Loading saved workspace...</div>}
       {/* Header */}
       <Header
         currentProject={currentProject}
+        projectActionsDisabled={isBusy || !ready}
+        durableStorage={durable}
         allProjects={projects}
         onSelectProject={setActiveProjectId}
         onNewProject={handleNewProject}
@@ -842,16 +726,21 @@ Keep the exact same markdown structure, headings, and tables.`;
         onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
       />
 
+      <nav className="md:hidden shrink-0 flex border-b border-[#212638]" aria-label="Workspace panels">
+        <button className={`flex-1 py-2 text-xs ${mobilePane === 'wiki' ? 'text-indigo-300' : 'text-zinc-400'}`} onClick={() => setMobilePane('wiki')}>Wiki & Sources</button>
+        <button className={`flex-1 py-2 text-xs ${mobilePane === 'assistant' ? 'text-indigo-300' : 'text-zinc-400'}`} onClick={() => setMobilePane('assistant')}>Assistant & Teacher</button>
+      </nav>
       {/* Exactly Two Scalable Split Windows with Draggable Divider */}
       <main
+        inert={!ready}
         className={`flex-1 flex overflow-hidden ${
           isDraggingSplitter ? 'select-none cursor-col-resize' : ''
         }`}
       >
         {/* PANE 1 (LEFT): WIKI / EDIT / BUILDER WITH 3 TABS AT TOP */}
         <section
-          style={{ width: `${splitPercent}%` }}
-          className="border-r border-[#1f2638] flex flex-col overflow-hidden min-w-[280px]"
+          style={{ '--pane-width': `${splitPercent}%` } as React.CSSProperties}
+          className={`workspace-pane ${mobilePane === 'wiki' ? 'flex' : 'hidden'} md:flex border-r border-[#1f2638] flex-col overflow-hidden min-w-0 md:min-w-[280px]`}
         >
           <WikiPanel
             pages={currentProject.pages}
@@ -892,7 +781,7 @@ Keep the exact same markdown structure, headings, and tables.`;
         {/* DRAGGABLE MIDDLE DIVIDER LINE */}
         <div
           onMouseDown={handleMouseDownSplitter}
-          className={`w-1.5 hover:w-2 transition-all cursor-col-resize select-none shrink-0 relative group z-20 flex items-center justify-center ${
+          className={`hidden md:flex w-1.5 hover:w-2 transition-all cursor-col-resize select-none shrink-0 relative group z-20 flex items-center justify-center ${
             isDraggingSplitter
               ? 'w-2 bg-indigo-500'
               : 'bg-[#1f2638] hover:bg-indigo-500/80 active:bg-indigo-600'
@@ -908,8 +797,8 @@ Keep the exact same markdown structure, headings, and tables.`;
 
         {/* PANE 2 (RIGHT): CO-DEVELOPER STUDIO WITH SEPARATE SCRATCHPADS & CLEAN CONTEXT TAB */}
         <section
-          style={{ width: `${100 - splitPercent}%` }}
-          className="flex flex-col overflow-hidden min-w-[280px]"
+          style={{ '--pane-width': `${100 - splitPercent}%` } as React.CSSProperties}
+          className={`workspace-pane ${mobilePane === 'assistant' ? 'flex' : 'hidden'} md:flex flex-col overflow-hidden min-w-0 md:min-w-[280px]`}
         >
           <AssistantPanel
             activeTab={rightTab}
@@ -971,6 +860,7 @@ Keep the exact same markdown structure, headings, and tables.`;
       <ExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
+        project={currentProject}
         projectName={currentProject.name}
         pages={currentProject.pages}
         notepad={`${currentProject.conceptNotepad}\n\n---\n\n${currentProject.teacherNotepad}`}
@@ -1017,3 +907,4 @@ Keep the exact same markdown structure, headings, and tables.`;
     </div>
   );
 }
+

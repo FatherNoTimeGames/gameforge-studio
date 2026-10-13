@@ -156,3 +156,7 @@
   font-weight: 600;
   color: #f1f5f9;
 }
+
+
+.workspace-pane { width: 100%; }
+@media (min-width: 768px) { .workspace-pane { width: var(--pane-width); } }

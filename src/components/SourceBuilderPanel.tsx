@@ -124,7 +124,7 @@ export const SourceBuilderPanel: React.FC<SourceBuilderPanelProps> = ({
         <p className="text-[11px] text-zinc-400 leading-relaxed">
           Upload engine scripts, design documents, or GitHub raw markdown files. Then run{' '}
           <strong className="text-zinc-200">Build Wiki</strong> or use the self-healing{' '}
-          <strong className="text-emerald-300">Auto-Verify & Fix Loop</strong> to converge on 100% factual accuracy.
+          <strong className="text-emerald-300">Auto-Verify & Fix Loop</strong> to check claims against your sources and repair flagged issues. Review the results before relying on them.
         </p>
       </div>
 
@@ -306,7 +306,7 @@ export const SourceBuilderPanel: React.FC<SourceBuilderPanelProps> = ({
           {isBuilding ? (
             <>
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              <span>Building Wiki with GPT-5 Mini...</span>
+              <span>Building Wiki with GPT-6.1 Sol...</span>
             </>
           ) : (
             <>
@@ -322,7 +322,7 @@ export const SourceBuilderPanel: React.FC<SourceBuilderPanelProps> = ({
             onClick={onAutoVerifyAndFixLoop}
             disabled={autoVerifyProgress.isRunning || isVerifying || sources.length === 0 || pages.length === 0}
             className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 text-white font-bold py-2 px-2.5 rounded-lg transition flex items-center justify-center space-x-1.5 shadow-md shadow-emerald-600/20"
-            title="Runs verify and auto-fix in a loop until 100% clean"
+            title="Checks and repairs flagged pages for up to four passes"
           >
             <Zap className="w-3.5 h-3.5 text-amber-300" />
             <span>⚡ Auto-Verify & Fix Loop</span>
@@ -432,3 +432,4 @@ export const SourceBuilderPanel: React.FC<SourceBuilderPanelProps> = ({
     </div>
   );
 };
+

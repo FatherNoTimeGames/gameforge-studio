@@ -44,8 +44,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ open, onClose }) => {
 
         <p className="text-xs text-zinc-400 leading-relaxed">
           When this app is deployed as a static website (no server), your key is used directly from
-          this browser and stored only in <span className="text-zinc-200">localStorage</span> — it never
-          leaves your machine except in requests to OpenAI. Get a free key:
+          this browser and stored only in <span className="text-zinc-200">localStorage</span>. Server hosting should use its secret settings instead. API usage is billed separately from ChatGPT; create a key here:
         </p>
 
         <a
@@ -109,3 +108,4 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ open, onClose }) => {
     </div>
   );
 };
+

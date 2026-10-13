@@ -22,7 +22,7 @@ export const CondenseModal: React.FC<CondenseModalProps> = ({
 
   const omissions = checkCondenseOmissions(page.content, condensedText);
   const hasDroppedFacts =
-    omissions.missingNumbers.length > 0 || omissions.missingRows.length > 0;
+    omissions.missingNumbers.length > 0 || omissions.missingRows.length > 0 || omissions.missingLinks.length > 0;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
@@ -70,7 +70,7 @@ export const CondenseModal: React.FC<CondenseModalProps> = ({
               <span className="font-bold text-sm block">
                 {hasDroppedFacts
                   ? 'Warning: Possible omitted stats or table rows'
-                  : 'Zero-loss verified! All numbers, formulas, and rows preserved.'}
+                  : 'Number, table, and link checks passed. Review before applying.'}
               </span>
               <p className="text-[11px] opacity-80 leading-relaxed">
                 Found {omissions.counts.numbers} numbers and {omissions.counts.rows} table rows in original.{' '}
@@ -91,7 +91,7 @@ export const CondenseModal: React.FC<CondenseModalProps> = ({
               Condensed: <strong className="text-emerald-400">{condensedText.length.toLocaleString()} chars</strong>
             </div>
             <div className="text-indigo-300 font-semibold">
-              {Math.round(((page.content.length - condensedText.length) / page.content.length) * 100)}% tighter
+              {Math.round(((page.content.length - condensedText.length) / Math.max(1, page.content.length)) * 100)}% tighter
             </div>
           </div>
 
@@ -131,3 +131,4 @@ export const CondenseModal: React.FC<CondenseModalProps> = ({
     </div>
   );
 };
+

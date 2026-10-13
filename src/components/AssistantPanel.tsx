@@ -37,6 +37,7 @@ interface AssistantPanelProps {
   ) => Promise<void>;
   onClearChat: () => void;
   isLoading: boolean;
+  chatgptMode?: boolean;
   activeWikiPage: WikiPage | null;
   onOpenSectionApply: (rawText: string) => void;
   // Context Working Memory props
@@ -61,6 +62,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
   onSendMessage,
   onClearChat,
   isLoading,
+  chatgptMode = false,
   activeWikiPage,
   onOpenSectionApply,
   pages,
@@ -551,7 +553,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
           {isLoading && (
             <div className="absolute bottom-28 left-6 bg-[#181c2b] border border-indigo-500/40 px-4 py-2 rounded-xl text-xs flex items-center space-x-2 shadow-xl text-indigo-300 z-10 animate-pulse">
               <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
-              <span>Consulting GDD Wiki context with GPT-6.1 Sol...</span>
+              <span>{chatgptMode ? 'Waiting for your connected ChatGPT conversation...' : 'Consulting GDD Wiki context with GPT-6.1 Sol...'}</span>
             </div>
           )}
 

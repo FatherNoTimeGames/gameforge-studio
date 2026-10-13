@@ -6,7 +6,7 @@ import path from 'node:path';
 import { once } from 'node:events';
 import { createApp } from '../../server.ts';
 
-test('production protects app, AI and saved workspace; health is public; writes reject stale devices', async () => {
+test('production protects app, AI and saved workspace; health is public; stale devices can submit saves', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'gameforge-server-'));
   const savedEnvironment = { ...process.env };
   process.env.NODE_ENV = 'production';
@@ -32,13 +32,16 @@ test('production protects app, AI and saved workspace; health is public; writes 
     const input = { projects: [{ id: 'p', name: 'Game', pages: [] }], activeProjectId: 'p', revision: 0 };
     const write = () => fetch(`${base}/api/workspace`, { method: 'PUT', headers, body: JSON.stringify(input) });
     assert.equal((await write()).status, 200);
-    assert.equal((await write()).status, 409);
+    assert.equal((await write()).status, 200);
     assert.equal((await fetch(`${base}/api/workspace`, { method: 'PUT', headers: { ...headers, Origin: 'https://attacker.example' }, body: JSON.stringify(input) })).status, 403);
     assert.equal((await fetch(`${base}/api/proxy-fetch`, { method: 'POST', headers, body: JSON.stringify({ url: 'http://169.254.169.254' }) })).status, 400);
     assert.equal((await fetch(`${base}/api/ai/generate`, { method: 'POST', headers, body: JSON.stringify({ prompt: 'x' }) })).status, 503);
     assert.equal((await fetch(`${base}/api/unknown`, { headers })).status, 404);
     const loaded = await (await fetch(`${base}/api/workspace`, { headers })).json();
-    assert.equal(loaded.workspace.revision, 1);
+    assert.equal(loaded.workspace.revision, 2);
+    const unchanged = await (await fetch(`${base}/api/workspace?revision=2`, { headers })).json();
+    assert.equal(unchanged.unchanged, true);
+    assert.equal(unchanged.workspace, undefined);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });

@@ -32,6 +32,7 @@ interface HeaderProps {
   onOpenExportModal: () => void;
   onOpenSnapshotsModal: () => void;
   onOpenApiKeyModal: () => void;
+  chatgptMode?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -49,7 +50,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenCompatibilityModal,
   onOpenExportModal,
   onOpenSnapshotsModal,
-  onOpenApiKeyModal
+  onOpenApiKeyModal,
+  chatgptMode = false
 }) => {
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
   const [renameValue, setRenameValue] = useState(currentProject.name);
@@ -236,14 +238,14 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         {/* API Key (web-only deployments) */}
-        <button
+        {!chatgptMode && <button
           onClick={onOpenApiKeyModal}
           className="bg-[#181c29] hover:bg-[#202638] text-zinc-300 border border-[#272e42] px-2 py-1 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition"
           title="Configure your OpenAI API key for static (web-only) deployments"
         >
           <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
           <span className="hidden xl:inline">API Key</span>
-        </button>
+        </button>}
 
         {/* Compatibility Guide */}
         <button

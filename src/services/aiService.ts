@@ -9,11 +9,13 @@ export interface GenerateAssistantParams {
   chatHistory?: ChatMessage[];
   imageBase64?: string;
   imageMimeType?: string;
+  clientContext?: { projectId: string; thread: 'concept' | 'teacher'; actionType: string };
 }
 
 export interface AssistantResponse {
   text: string;
   modelUsed?: string;
+  requestId?: string;
 }
 
 
@@ -271,12 +273,14 @@ ${wikiContext}${chatContextStr}${scratchpadStr}`;
 
   const data = await requestAi({
       prompt: fullPrompt,
+      clientContext: params.clientContext,
       systemInstruction,
       imageBase64,
       imageMimeType
   });
   return {
     text: data.text || '',
+    requestId: data.requestId,
     modelUsed: data.modelUsed
   };
 }

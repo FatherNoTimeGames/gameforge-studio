@@ -10,6 +10,7 @@ import { PageHistoryModal } from './components/PageHistoryModal';
 import { CondenseModal } from './components/CondenseModal';
 import { SectionApplyModal } from './components/SectionApplyModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { ChatGptTasks } from './components/ChatGptTasks';
 import {
   ActionType,
   AutoVerifyProgress,
@@ -38,6 +39,7 @@ import {
 import { verifyAndRepairPages } from './services/verification';
 import { useWorkspace } from './hooks/useWorkspace';
 import { importProject } from './utils/projectData';
+import { setChatGptMode } from './services/ai';
 
 function createDefaultProject(id: string = 'proj-default', name: string = 'Project ChronoStrike'): ProjectData {
   return {
@@ -58,9 +60,10 @@ function createDefaultProject(id: string = 'proj-default', name: string = 'Proje
   };
 }
 
-export default function App() {
+export default function App({ chatgptMode = false }: { chatgptMode?: boolean }) {
+  useEffect(() => { setChatGptMode(chatgptMode); }, [chatgptMode]);
   // Multi-Project State
-  const { projects, setProjects, activeProjectId, setActiveProjectId, ready, durable, autoSaveStatus, saveError, retrySave } = useWorkspace(createDefaultProject());
+  const { projects, setProjects, activeProjectId, setActiveProjectId, ready, durable, autoSaveStatus, saveError, retrySave } = useWorkspace(createDefaultProject(), chatgptMode);
 
   // UI Views (2-Pane Architecture with 3 Tabs each)
   const [mobilePane, setMobilePane] = useState<'wiki' | 'assistant'>('wiki');
@@ -199,7 +202,7 @@ export default function App() {
   );
 
   const handleNewProject = () => {
-    const newId = `proj-${Date.now()}`;
+    const newId = `proj-${crypto.randomUUID()}`;
     const newProj = createDefaultProject(newId, 'New Game Project');
     setProjects((prev) => [newProj, ...prev]);
     setActiveProjectId(newId);
@@ -222,7 +225,7 @@ export default function App() {
 
   // Wiki Page Mutators (Supports Parent ID for Subpages)
   const handleCreatePage = (parentId?: string | null) => {
-    const newId = `page-${Date.now()}`;
+    const newId = `page-${crypto.randomUUID()}`;
     const parent = parentId ? currentProject.pages.find((p) => p.id === parentId) : null;
     const newPage: WikiPage = {
       id: newId,
@@ -306,7 +309,7 @@ export default function App() {
   const handleAddSource = (source: Omit<SourceItem, 'id' | 'addedAt'>) => {
     const newSource: SourceItem = {
       ...source,
-      id: `src-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `src-${crypto.randomUUID()}`,
       addedAt: Date.now()
     };
     updateCurrentProject((p) => ({
@@ -360,7 +363,7 @@ export default function App() {
             };
           } else {
             updatedPages.push({
-              id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              id: `page-${crypto.randomUUID()}`,
               title: gen.title,
               content: gen.content,
               parentId: null,
@@ -575,7 +578,7 @@ Keep the exact same markdown structure, headings, and tables.`;
   ) => {
     if (isAiLoading) return;
     const userMsg: ChatMessage = {
-      id: `msg-${Date.now()}`,
+      id: `msg-${crypto.randomUUID()}`,
       role: 'user',
       text: prompt,
       actionType,
@@ -597,6 +600,7 @@ Keep the exact same markdown structure, headings, and tables.`;
         rightTab === 'concept' ? currentProject.chatConcept : currentProject.chatTeacher;
 
       const result = await requestAssistantResponse({
+        clientContext: chatgptMode ? { projectId: currentProject.id, thread: rightTab === 'teacher' ? 'teacher' : 'concept', actionType } : undefined,
         actionType,
         prompt,
         pages: currentProject.pages,
@@ -609,7 +613,7 @@ Keep the exact same markdown structure, headings, and tables.`;
       });
 
       const assistantMsg: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
+        id: result.requestId ? `chatgpt-${result.requestId}` : `msg-${crypto.randomUUID()}`,
         role: 'assistant',
         text: result.text,
         actionType,
@@ -624,7 +628,7 @@ Keep the exact same markdown structure, headings, and tables.`;
       }));
     } catch (err: any) {
       const errorMsg: ChatMessage = {
-        id: `msg-${Date.now() + 1}`,
+        id: `msg-${crypto.randomUUID()}`,
         role: 'assistant',
         text: `**Assistant Request Failed:** ${err.message || 'Check connection or model server availability.'}`,
         actionType,
@@ -644,7 +648,7 @@ Keep the exact same markdown structure, headings, and tables.`;
   // Snapshots Handlers
   const handleCreateSnapshot = (name: string) => {
     const snap: Snapshot = {
-      id: `snap-${Date.now()}`,
+      id: `snap-${crypto.randomUUID()}`,
       name,
       timestamp: Date.now(),
       pageCount: currentProject.pages.length,
@@ -686,7 +690,7 @@ Keep the exact same markdown structure, headings, and tables.`;
   };
 
   const handleImportProject = (importedData: any) => {
-    const newId = `proj-${Date.now()}`;
+    const newId = `proj-${crypto.randomUUID()}`;
     const newProj = importProject(importedData, newId);
     setProjects((prev) => [newProj, ...prev]);
     setActiveProjectId(newId);
@@ -699,6 +703,14 @@ Keep the exact same markdown structure, headings, and tables.`;
 
   return (
     <div style={appHeightPx ? { height: `${appHeightPx}px` } : undefined} className="h-dvh w-screen flex flex-col bg-[#0b0d13] text-zinc-100 font-sans overflow-hidden">
+      {chatgptMode && <ChatGptTasks onRestoreChat={(result) => {
+        const context = result.clientContext;
+        if (!context || !projects.some((p) => p.id === context.projectId)) throw new Error('This reply has no matching project chat. View and copy the saved reply instead.');
+        const message: ChatMessage = { id: `chatgpt-${result.id}`, role: 'assistant', text: result.text, actionType: context.actionType as ActionType, timestamp: Date.now(), modelUsed: result.modelUsed };
+        const key = context.thread === 'teacher' ? 'chatTeacher' : 'chatConcept';
+        setProjects((previous) => previous.map((project) => project.id !== context.projectId || project[key].some((m) => m.id === message.id)
+          ? project : { ...project, [key]: [...project[key], message], updatedAt: Date.now() }));
+      }} />}
       {saveError && (
         <div role="alert" className="shrink-0 bg-amber-950 text-amber-100 px-3 py-2 text-xs flex items-center gap-3">
           <span className="flex-1">{saveError}</span>
@@ -712,6 +724,7 @@ Keep the exact same markdown structure, headings, and tables.`;
         currentProject={currentProject}
         projectActionsDisabled={isBusy || !ready}
         durableStorage={durable}
+        chatgptMode={chatgptMode}
         allProjects={projects}
         onSelectProject={setActiveProjectId}
         onNewProject={handleNewProject}
@@ -801,6 +814,7 @@ Keep the exact same markdown structure, headings, and tables.`;
           className={`workspace-pane ${mobilePane === 'assistant' ? 'flex' : 'hidden'} md:flex flex-col overflow-hidden min-w-0 md:min-w-[280px]`}
         >
           <AssistantPanel
+            chatgptMode={chatgptMode}
             activeTab={rightTab}
             onTabChange={setRightTab}
             targetEngine={currentEngine}
@@ -828,7 +842,7 @@ Keep the exact same markdown structure, headings, and tables.`;
               updateCurrentProject((p) => ({ ...p, teacherNotepad: val }))
             }
             onPromoteNotepadToPage={(title, content, parentId) => {
-              const newId = `page-${Date.now()}`;
+              const newId = `page-${crypto.randomUUID()}`;
               const newPage: WikiPage = {
                 id: newId,
                 title,
@@ -853,6 +867,7 @@ Keep the exact same markdown structure, headings, and tables.`;
 
       {/* Modals */}
       <CompatibilityModal
+        chatgptMode={chatgptMode}
         isOpen={isCompatibilityModalOpen}
         onClose={() => setIsCompatibilityModalOpen(false)}
       />

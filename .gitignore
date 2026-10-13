@@ -8,3 +8,6 @@ coverage/
 !.env.example
 
 data/
+!sites/build/
+!sites/build/**
+.sites-export/

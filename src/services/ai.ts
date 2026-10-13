@@ -1,6 +1,7 @@
 import { getEffectiveClientKey } from './config.ts';
 import { AI_CONFIG, generateResponse } from '../../shared/openai.ts';
 import { htmlToPlainText } from '../../shared/htmlText.ts';
+import { generateWithChatGpt } from './chatgptBridge.ts';
 
 export const DEFAULT_MODEL = AI_CONFIG.model;
 export interface AiGenerateRequest {
@@ -9,10 +10,14 @@ export interface AiGenerateRequest {
   imageBase64?: string;
   imageMimeType?: string;
   outputKind?: 'wiki_build' | 'verification' | 'index';
+  clientContext?: { projectId: string; thread: 'concept' | 'teacher'; actionType: string };
 }
-export interface AiGenerateResult { text: string; modelUsed?: string; }
+export interface AiGenerateResult { text: string; modelUsed?: string; requestId?: string; }
 
 let proxyCheck: Promise<boolean> | null = null;
+let chatgptMode = false;
+let subscriptionMode = false;
+export function setChatGptMode(enabled: boolean) { subscriptionMode = enabled; }
 async function checkProxy(): Promise<boolean> {
   if (proxyCheck) return proxyCheck;
   proxyCheck = (async () => {
@@ -21,13 +26,18 @@ async function checkProxy(): Promise<boolean> {
     if (!response.ok) throw new Error('The workspace server is unavailable. Sign in or retry when it is back online.');
     if (!response.headers.get('content-type')?.includes('application/json')) return false;
     const data = await response.json();
+    chatgptMode = data?.aiMode === 'chatgpt';
     return data?.status === 'ok';
   })();
   try { return await proxyCheck; } catch (error) { proxyCheck = null; throw error; }
 }
 
 export async function aiGenerate(request: AiGenerateRequest): Promise<AiGenerateResult> {
+  // The Sites interface must never fall back to a stored browser API key,
+  // including when its status endpoint is unavailable or misconfigured.
+  if (subscriptionMode) return generateWithChatGpt(request);
   if (await checkProxy()) {
+    if (chatgptMode) return generateWithChatGpt(request);
     const response = await fetch('/api/openai/chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request), signal: AbortSignal.timeout(250_000),

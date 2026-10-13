@@ -14,4 +14,3 @@ export function readExecutionProfile() {
   }
   return settings.executionProfile;
 }
-

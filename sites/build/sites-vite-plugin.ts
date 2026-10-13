@@ -228,4 +228,3 @@ function safeReturn(value: string | null): string {
     return "/";
   }
 }
-

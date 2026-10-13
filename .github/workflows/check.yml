@@ -37,7 +37,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: npm install --package-lock-only --ignore-scripts
+      - run: npm update --package-lock-only --ignore-scripts
+      - name: Record upstream dependency releases
+        run: |
+          node --input-type=module -e 'import {execFileSync} from "node:child_process"; import {writeFileSync} from "node:fs"; const result=Object.fromEntries(["braces","fflate"].map(name=>[name,execFileSync("npm",["view",name,"version"],{encoding:"utf8"}).trim()])); writeFileSync("dependency-releases.json",JSON.stringify(result));'
       - run: npm ci --include=dev
       - name: Audit Sites production dependencies
         run: npm audit --omit=dev --json > dependency-audit.json
@@ -67,6 +70,7 @@ jobs:
             sites/package.json
             sites/dependency-audit.json
             sites/dependency-audit-all.json
+            sites/dependency-releases.json
             sites/drizzle
             sites/dist
           retention-days: 7

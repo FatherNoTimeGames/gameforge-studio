@@ -22,6 +22,7 @@ deployment is running this revision.
 | Medium | Plain Markdown proposals could not be applied; Unicode headings collided during section merging; nested code could be truncated by auto-repair fence extraction. | Parse plain and fenced replies, keep code fences intact and match Unicode headings correctly. |
 | Medium | Category editing, wiki indexing and clearing sources had callbacks but no reachable controls. | Wire their controls into the existing interface. Index failures now appear to the user. |
 | Medium | Condense copy implied complete fact verification; exported starter code claimed to come from the user's wiki although its values were fixed examples. | Describe the checks as number/table/link aids and label scaffolds as examples. Unsupported engines get a scaffold README instead of an invalid fake source file. |
+| Medium | The context gauge claimed free headroom against a hardcoded model budget, even though Sites uses the user's selected conversation model. | Show estimated wiki size and explain that model limits and actual request sizes vary. |
 | Low | Mobile downloads revoked their temporary URLs immediately; repeated selection of the same backup was unreliable; file-read errors had no feedback. | Delay URL cleanup, reset the file input and show file-read errors. |
 | Low | Obsolete model/fallback constants and unused imports remained after the model migration. | Remove confirmed unused definitions and add TypeScript checks for unused locals/parameters. Retain working alternative hosting adapters. |
 
@@ -30,7 +31,14 @@ deployment is running this revision.
 The initial production-package scan found no advisories in the root target.
 It found advisories in the Sites target's pinned Next.js and sharp versions.
 The update pins Next.js to `16.4.0` and sharp to `0.35.5`; final lockfiles and
-audit results are checked alongside the Worker and standalone builds.
+audit results are checked alongside the Worker and standalone builds. The full
+scan also identified advisories in the older React server, Vinext/Vite and
+Cloudflare tooling graph. Those versions and their required peers were updated
+as a compatible set; the Drizzle configuration loader's old esbuild dependency
+uses a patched override. Both production scans and the complete Sites graph
+are rechecked after locking the final transitive dependencies. Advisory counts
+are recorded below after the last verification run; they do not guarantee
+against all security issues.
 Package advisories describe installed dependency versions, not proof that the
 application exposed an affected endpoint or that an exploit occurred.
 

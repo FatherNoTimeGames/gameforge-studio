@@ -37,7 +37,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: npm update --package-lock-only --ignore-scripts
       - name: Record upstream dependency releases
         run: |
           node --input-type=module -e 'import {execFileSync} from "node:child_process"; import {writeFileSync} from "node:fs"; const result=Object.fromEntries(["braces","fflate"].map(name=>[name,execFileSync("npm",["view",name,"version"],{encoding:"utf8"}).trim()])); writeFileSync("dependency-releases.json",JSON.stringify(result));'

@@ -46,6 +46,11 @@ fix for this application. That upstream finding remains open. These packages
 process build-time import patterns; this app does not expose a glob-pattern
 input endpoint. This is a source assessment, not a proof of non-exploitability.
 The old font-renderer ZIP dependency uses patched `fflate` `0.8.3`.
+
+Final package results: root production **0 advisories**; Sites production
+**0 advisories**; full Sites graph **6 high-severity package flags**, all from
+the remaining upstream `braces` glob-chain advisory. No critical advisory remains
+in the scans. The full graph is not described as clean.
 Package advisories describe installed dependency versions, not proof that the
 application exposed an affected endpoint or that an exploit occurred.
 
@@ -63,7 +68,8 @@ pending edits, task recovery, backups and authenticated API access.
 
 Required checks: root tests/typecheck/build, unused-local/parameter checks,
 Sites typecheck/build, migration drift, standalone source export/build and the
-built Worker smoke check with real local D1/R2. Final CI results are recorded
+built Worker smoke check with real local D1/R2. The suite now contains **43
+passing tests**. Final CI results are recorded
 in the pull request.
 
 ## Remaining improvements and verification limits

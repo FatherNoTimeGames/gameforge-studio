@@ -10,10 +10,12 @@ import {
   Check,
   AlertCircle
 } from 'lucide-react';
-import { TargetEngine, WikiPage } from '../types';
+import { ProjectData, TargetEngine, WikiPage } from '../types';
+import { createProjectBackup } from '../utils/projectData';
 import { downloadJsonFile, downloadMarkdownFile, exportFullProjectZip } from '../utils/exportUtils';
 
 interface ExportModalProps {
+  project: ProjectData;
   isOpen: boolean;
   onClose: () => void;
   projectName: string;
@@ -25,6 +27,7 @@ interface ExportModalProps {
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
+  project,
   isOpen,
   onClose,
   projectName,
@@ -44,7 +47,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   const handleZipExport = async () => {
     try {
       setIsZipping(true);
-      await exportFullProjectZip(projectName, pages, notepad, targetEngine);
+      await exportFullProjectZip(projectName, pages, notepad, targetEngine, project);
     } catch (err: any) {
       alert(`Export failed: ${err.message}`);
     } finally {
@@ -53,14 +56,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   const handleJsonExport = () => {
-    const backupData = {
-      gameForgeVersion: '1.0.0',
-      exportedAt: new Date().toISOString(),
-      projectName,
-      targetEngineId: targetEngine.id,
-      pages,
-      notepad
-    };
+    const backupData = createProjectBackup(project);
     const safeName = projectName.replace(/[^a-zA-Z0-9_-]/g, '_') || 'Game_Project';
     downloadJsonFile(`${safeName}_Backup.json`, backupData);
   };
@@ -253,3 +249,4 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     </div>
   );
 };
+

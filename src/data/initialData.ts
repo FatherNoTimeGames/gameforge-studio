@@ -1,4 +1,4 @@
-import { TargetEngine, WikiPage } from '../types';
+import type { TargetEngine, WikiPage } from '../types';
 
 export const TARGET_ENGINES: TargetEngine[] = [
   {
@@ -274,3 +274,4 @@ export const COMPATIBILITY_GUIDES = [
     obsidian: 'Data tables in the wiki export to JSON or CSV for direct engine import.'
   }
 ];
+

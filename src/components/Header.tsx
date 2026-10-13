@@ -18,6 +18,8 @@ import { TARGET_ENGINES } from '../data/initialData';
 
 interface HeaderProps {
   currentProject: ProjectData;
+  projectActionsDisabled?: boolean;
+  durableStorage?: boolean;
   allProjects: ProjectData[];
   onSelectProject: (id: string) => void;
   onNewProject: () => void;
@@ -34,6 +36,8 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   currentProject,
+  projectActionsDisabled = false,
+  durableStorage = false,
   allProjects,
   onSelectProject,
   onNewProject,
@@ -69,14 +73,14 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleRenameSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (renameValue.trim()) {
+    if (!projectActionsDisabled && renameValue.trim()) {
       onRenameProject(renameValue.trim());
       setIsProjectMenuOpen(false);
     }
   };
 
   return (
-    <header className="h-12 bg-[#11141d] border-b border-[#212638] px-3 sm:px-4 flex items-center justify-between shrink-0 select-none z-30">
+    <header className="min-h-12 py-2 md:py-0 md:h-12 gap-2 flex-wrap md:flex-nowrap bg-[#11141d] border-b border-[#212638] px-3 sm:px-4 flex items-center justify-between shrink-0 select-none z-30">
       {/* Left: Brand & Multi-Project Dropdown */}
       <div className="flex items-center space-x-2.5">
         <div className="flex items-center space-x-1.5 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 px-2 py-1 rounded-lg">
@@ -89,6 +93,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Project Selector Menu */}
         <div className="relative" ref={dropdownRef}>
           <button
+            disabled={projectActionsDisabled}
             onClick={() => setIsProjectMenuOpen(!isProjectMenuOpen)}
             className="flex items-center space-x-1.5 bg-[#181c29] px-2.5 py-1 rounded-lg border border-[#272e42] hover:border-[#384261] transition text-xs font-semibold text-zinc-100"
           >
@@ -97,7 +102,7 @@ export const Header: React.FC<HeaderProps> = ({
             <ChevronDown className="w-3 h-3 text-zinc-400" />
           </button>
 
-          {isProjectMenuOpen && (
+          {isProjectMenuOpen && !projectActionsDisabled && (
             <div className="absolute top-full left-0 mt-1.5 w-72 bg-[#141826] border border-[#273048] rounded-xl shadow-2xl p-3 z-50 space-y-3">
               <form onSubmit={handleRenameSubmit} className="space-y-1">
                 <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
@@ -184,7 +189,7 @@ export const Header: React.FC<HeaderProps> = ({
           ) : (
             <>
               <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-              <span className="text-emerald-400 font-medium">Auto-saved</span>
+              <span className={autoSaveStatus === 'dirty' ? 'text-amber-300' : 'text-emerald-400 font-medium'}>{autoSaveStatus === 'dirty' ? 'Save failed' : durableStorage ? 'Saved to server' : 'Saved in browser'}</span>
             </>
           )}
         </div>
@@ -196,6 +201,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center space-x-1.5 bg-[#181c29] px-2 py-0.5 rounded-lg border border-[#272e42]">
           <FileCode className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
           <select
+            disabled={projectActionsDisabled}
             value={targetEngineId}
             onChange={(e) => onTargetEngineChange(e.target.value as TargetEngineId)}
             className="bg-[#121520] text-xs font-medium text-zinc-200 focus:outline-none rounded px-1.5 py-0.5 border border-[#2d344b] cursor-pointer hover:border-indigo-500/50 transition max-w-[140px] sm:max-w-none"
@@ -210,6 +216,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Snapshots Button */}
         <button
+          disabled={projectActionsDisabled}
           onClick={onOpenSnapshotsModal}
           className="bg-[#181c29] hover:bg-[#202638] text-zinc-300 border border-[#272e42] px-2 py-1 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition"
           title="Version history checkpoints"
@@ -251,3 +258,4 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
+

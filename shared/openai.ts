@@ -1,107 +1,87 @@
-// Shared OpenAI chat-completion logic for the Express server and serverless functions.
-// Uses plain fetch against the OpenAI REST API (Node 18+ built-in), so no SDK is needed
-// on the hosting edge.
+export const AI_CONFIG = Object.freeze({
+  model: 'gpt-6.1-sol',
+  reasoningEffort: 'high',
+  serviceTier: 'default',
+});
 
-import { DEFAULT_MODEL, FALLBACK_MODELS } from './constants';
-
-export { DEFAULT_MODEL, FALLBACK_MODELS };
-
-export interface ChatPartText {
-  type: 'text';
-  text: string;
-}
-export interface ChatPartImage {
-  type: 'image_url';
-  image_url: { url: string };
-}
-export type ChatContent = string | Array<ChatPartText | ChatPartImage>;
-export interface ChatMessagePayload {
-  role: 'system' | 'user' | 'assistant';
-  content: ChatContent;
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) { super(message); this.status = status; }
 }
 
-export interface GenerateArgs {
-  prompt: string;
-  systemInstruction?: string;
-  model?: string;
-  apiKey: string;
-  imageBase64?: string;
-  imageMimeType?: string;
-  baseUrl?: string; // e.g. https://api.openai.com/v1 (default) — overridable for Azure/OpenRouter/etc.
-}
+const stringArray = { type: 'array', items: { type: 'string' } };
+const formats: Record<string, Record<string, unknown>> = {
+  wiki_build: { type: 'object', additionalProperties: false, required: ['pages'], properties: {
+    pages: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['title', 'content', 'parentTitle'], properties: {
+      title: { type: 'string' }, content: { type: 'string' }, parentTitle: { type: ['string', 'null'] },
+    } } },
+  } },
+  verification: { type: 'object', additionalProperties: false, required: ['status', 'issues', 'unsupported', 'missing'], properties: {
+    status: { type: 'string', enum: ['ok', 'warning', 'error'] }, issues: stringArray, unsupported: stringArray, missing: stringArray,
+  } },
+  index: { type: 'object', additionalProperties: false, required: ['summary', 'keywords'], properties: {
+    summary: { type: 'string' }, keywords: stringArray,
+  } },
+};
 
-export interface GenerateOutcome {
-  ok: boolean;
-  text?: string;
-  modelUsed?: string;
-  error?: string;
-  fatal?: boolean; // auth/billing/rate-limit: don't try other models
-}
-
-function buildMessages(args: GenerateArgs): ChatMessagePayload[] {
-  const messages: ChatMessagePayload[] = [];
-  if (args.systemInstruction) {
-    messages.push({ role: 'system', content: args.systemInstruction });
+export function createResponseBody(input: unknown) {
+  if (!input || typeof input !== 'object') throw new ApiError(400, 'A request body is required.');
+  const { prompt, systemInstruction, imageBase64, imageMimeType, outputKind } = input as Record<string, unknown>;
+  if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 500_000) {
+    throw new ApiError(400, 'Provide a prompt between 1 and 500,000 characters.');
   }
-  if (args.imageBase64) {
-    const mime = args.imageMimeType || 'image/png';
-    messages.push({
-      role: 'user',
-      content: [
-        { type: 'image_url', image_url: { url: `data:${mime};base64,${args.imageBase64}` } },
-        { type: 'text', text: args.prompt || 'Analyze this game engine screenshot or error.' }
-      ]
-    });
-  } else {
-    messages.push({ role: 'user', content: args.prompt });
+  if (systemInstruction !== undefined && (typeof systemInstruction !== 'string' || systemInstruction.length > 1_000_000)) {
+    throw new ApiError(400, 'The instructions are too large or invalid.');
   }
-  return messages;
+  if (outputKind !== undefined && (typeof outputKind !== 'string' || !formats[outputKind])) throw new ApiError(400, 'Invalid response format.');
+  const content: Record<string, unknown>[] = [{ type: 'input_text', text: prompt }];
+  if (imageBase64 !== undefined) {
+    if (typeof imageBase64 !== 'string' || !imageBase64.length || imageBase64.length > 14_000_000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(imageBase64)) {
+      throw new ApiError(400, 'Provide a valid image under 10 MB.');
+    }
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(String(imageMimeType))) {
+      throw new ApiError(400, 'Supported image types: PNG, JPEG, WebP, and GIF.');
+    }
+    content.push({ type: 'input_image', image_url: `data:${imageMimeType};base64,${imageBase64}` });
+  }
+  // The server owns the model and processing settings. Never silently fall back.
+  return {
+    model: AI_CONFIG.model,
+    reasoning: { effort: AI_CONFIG.reasoningEffort },
+    service_tier: AI_CONFIG.serviceTier,
+    store: false,
+    text: typeof outputKind === 'string' ? { format: { type: 'json_schema', name: outputKind, strict: true, schema: formats[outputKind] } } : undefined,
+    max_output_tokens: 32_768,
+    instructions: systemInstruction || undefined,
+    input: [{ role: 'user', content }],
+  };
 }
 
-async function callOnce(args: GenerateArgs, targetModel: string): Promise<GenerateOutcome> {
-  const base = (args.baseUrl || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
-  let res: Response;
-  try {
-    res = await fetch(`${base}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${args.apiKey}`
-      },
-      body: JSON.stringify({ model: targetModel, messages: buildMessages(args) }),
-      signal: AbortSignal.timeout(90000)
-    });
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : 'Network error calling OpenAI.' };
+export async function generateResponse(input: unknown, apiKey: string, signal: AbortSignal, fetcher: typeof fetch = fetch) {
+  const body = createResponseBody(input);
+  const response = await fetcher('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!response.ok) {
+    // Avoid returning upstream bodies that may contain prompt fragments or secrets.
+    const messages: Record<number, string> = {
+      401: 'The server OpenAI API key is invalid. Update OPENAI_API_KEY in hosting settings.',
+      403: 'This OpenAI project does not have access to GPT-6.1 Sol.',
+      404: 'GPT-6.1 Sol is unavailable for this OpenAI project.',
+      429: 'OpenAI quota or rate limit reached. Check API billing or try again later.',
+    };
+    throw new ApiError(response.status === 429 ? 429 : 502, messages[response.status] || 'OpenAI could not complete this request. Try again later.');
   }
-
-  if (!res.ok) {
-    const errBody = await res.json().catch(() => ({} as any));
-    const message = errBody?.error?.message || `OpenAI responded with status ${res.status}.`;
-    // Auth / billing / rate-limit errors will not be fixed by trying another model.
-    const fatal = res.status === 401 || res.status === 403 || res.status === 429;
-    if (fatal) return { ok: false, error: message, fatal };
-    return { ok: false, error: message };
+  const data = await response.json();
+  if (data.status !== 'completed') {
+    throw new ApiError(502, 'The response was incomplete. Try a smaller request; partial wiki edits were not applied.');
   }
-
-  const data = await res.json();
-  const text: string = data?.choices?.[0]?.message?.content || '';
-  return { ok: true, text, modelUsed: targetModel };
-}
-
-// Try requested model first, then fallbacks. Returns the first success.
-export async function openAiGenerateWithFallback(args: GenerateArgs): Promise<GenerateOutcome> {
-  const candidates = [args.model || DEFAULT_MODEL, ...FALLBACK_MODELS].filter(
-    (m, idx, self) => self.indexOf(m) === idx
-  );
-
-  let lastError: GenerateOutcome = { ok: false, error: 'Failed to generate response from OpenAI.' };
-  for (const targetModel of candidates) {
-    const outcome = await callOnce(args, targetModel);
-    if (outcome.ok) return outcome;
-    lastError = outcome;
-    console.warn(`Model ${targetModel} failed: ${outcome.error}. Retrying fallback if available...`);
-    if (outcome.fatal) break;
-  }
-  return lastError;
+  const parts = (data.output || []).filter((item: any) => item.type === 'message').flatMap((item: any) => item.content || []);
+  if (parts.some((part: any) => part.type === 'refusal')) throw new ApiError(422, 'The model could not fulfill this request. Please revise it.');
+  const text = parts.filter((part: any) => part.type === 'output_text').map((part: any) => part.text).join('\n');
+  if (!text.trim()) throw new ApiError(502, 'OpenAI returned no text. Try again with a smaller request.');
+  return { text, modelUsed: data.model || AI_CONFIG.model, reasoningEffort: 'high', serviceTier: data.service_tier || 'default' };
 }

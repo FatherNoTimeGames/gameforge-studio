@@ -4,14 +4,22 @@ export interface Section {
   body: string;
 }
 
-function splitSections(md: string): Section[] {
+export function splitSections(md: string): Section[] {
   const lines = String(md || '').split('\n');
   const secs: Section[] = [];
   let cur: Section = { heading: null, level: 0, body: '' };
   const curLines: string[] = [];
 
+  let fence: { marker: string; length: number } | null = null;
   for (const ln of lines) {
-    const h = ln.match(/^(#{1,6})\s+(.*)$/);
+    const marker = ln.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (marker) {
+      if (!fence) fence = { marker: marker[1][0], length: marker[1].length };
+      else if (marker[1][0] === fence.marker && marker[1].length >= fence.length && !marker[2].trim()) fence = null;
+      curLines.push(ln);
+      continue;
+    }
+    const h = !fence && ln.match(/^(#{1,6})\s+(.*)$/);
     if (h && h[1].length >= 2) {
       cur.body = curLines.join('\n').trim();
       secs.push(cur);
@@ -81,16 +89,21 @@ export function mergeSections(
 
 export function parseWikiEditBlocks(text: string): { title: string; body: string }[] {
   const src = String(text || '');
-  const fenceRe = /```(?:markdown|md)?[^\S\n]*\n([\s\S]*?)```/g;
   const blocks: { body: string; end: number; claimed: boolean }[] = [];
+  const fenceRe = /^ {0,3}(`{3,}|~{3,})([^\n]*)\n/gm;
   let m: RegExpExecArray | null;
-
   while ((m = fenceRe.exec(src)) !== null) {
-    blocks.push({
-      body: m[1].replace(/```/g, '').trim(),
-      end: m.index + m[0].length,
-      claimed: false
-    });
+    const opening = m[1];
+    const language = m[2].trim().toLowerCase();
+    const bodyStart = fenceRe.lastIndex;
+    const closingRe = new RegExp(`^ {0,3}${opening[0]}{${opening.length},}[ \t]*$`, 'gm');
+    closingRe.lastIndex = bodyStart;
+    const close = closingRe.exec(src);
+    if (!close) break;
+    fenceRe.lastIndex = close.index + close[0].length;
+    if (!language || ['markdown', 'md'].includes(language)) {
+      blocks.push({ body: src.slice(bodyStart, close.index).trim(), end: fenceRe.lastIndex, claimed: false });
+    }
   }
 
   const pasteRe = /^[ \t]*Paste into:[ \t]*(.+?)[ \t]*$/gim;
@@ -103,7 +116,7 @@ export function parseWikiEditBlocks(text: string): { title: string; body: string
   const items: { title: string; body: string }[] = [];
 
   for (const pl of pastes) {
-    const cands = blocks.filter((b) => !b.claimed && b.end < pl.idx && b.body.length >= 20);
+    const cands = blocks.filter((b) => !b.claimed && b.end <= pl.idx && b.body.length >= 20);
     const pick = cands.filter((c) => isWiki(c.body)).pop() || (cands.length === 1 ? cands[0] : null);
     if (!pick) continue;
     pick.claimed = true;
@@ -127,7 +140,7 @@ export function parseWikiEditBlocks(text: string): { title: string; body: string
   return items;
 }
 
-function extractFacts(md: string): { numbers: string[]; rows: string[]; links: string[] } {
+export function extractFacts(md: string): { numbers: string[]; rows: string[]; links: string[] } {
   const t = String(md || '');
   const nums = [...t.matchAll(/(?<![\d.])\d[\d,]*(?:\.\d+)?/g)].map((m) => m[0].replace(/,/g, ''));
   const rows = t
@@ -166,3 +179,4 @@ export function checkCondenseOmissions(
     missingLinks: a.links.filter((l) => !bLinks.has(l) && !condensedLow.includes(l))
   };
 }
+

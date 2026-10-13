@@ -1,5 +1,5 @@
-import JSZip from 'jszip';
-import { TargetEngine, WikiPage } from '../types';
+import { createProjectBackup } from './projectData';
+import { ProjectData, TargetEngine, WikiPage } from '../types';
 
 function triggerBrowserDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -27,8 +27,10 @@ export async function exportFullProjectZip(
   projectName: string,
   pages: WikiPage[],
   notepad: string,
-  targetEngine: TargetEngine
+  targetEngine: TargetEngine,
+  project: ProjectData
 ) {
+  const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
   const safeProjectName = projectName.replace(/[^a-zA-Z0-9_-]/g, '_') || 'Game_Project';
 
@@ -208,17 +210,11 @@ public class PlayerController : MonoBehaviour
   }
 
   // 5. Full Project State Manifest JSON (for 1-click restore)
-  const manifest = {
-    gameForgeVersion: '1.0.0',
-    exportedAt: new Date().toISOString(),
-    projectName,
-    targetEngineId: targetEngine.id,
-    pages,
-    notepad
-  };
+  const manifest = createProjectBackup(project);
   zip.file('project_manifest.json', JSON.stringify(manifest, null, 2));
 
   // Generate Zip
   const zipBlob = await zip.generateAsync({ type: 'blob' });
   triggerBrowserDownload(zipBlob, `${safeProjectName}_GDD_Bundle.zip`);
 }
+

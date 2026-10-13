@@ -24,10 +24,5 @@ export function setLocalApiKey(key: string): void {
   }
 }
 
-// Effective key to use for client-side direct calls: local key first,
-// then a build-time VITE_OPENAI_API_KEY (only recommended for personal/private deploys).
-export function getEffectiveClientKey(): string {
-  const local = getLocalApiKey();
-  if (local) return local;
-  return (import.meta.env.VITE_OPENAI_API_KEY as string | undefined)?.trim() || '';
-}
+// Browser keys are opt-in. Deployed owner keys belong in server hosting secrets.
+export function getEffectiveClientKey(): string { return getLocalApiKey(); }

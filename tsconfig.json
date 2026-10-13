@@ -5,7 +5,8 @@
     "useDefineForClassFields": false,
     "module": "ESNext",
     "types": [
-      "vite/client"
+      "vite/client",
+      "node"
     ],
     "lib": [
       "ES2022",
@@ -29,10 +30,14 @@
   "include": [
     "src",
     "server.ts",
-    "shared"
+    "server",
+    "shared",
+    "api",
+    "tests",
+    "vite.config.ts",
+    "netlify/functions"
   ],
   "exclude": [
-    "api",
     "dist",
     "node_modules"
   ]

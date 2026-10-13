@@ -1,7 +1,6 @@
-import { ActionType, ChatMessage, SourceItem, TargetEngine, VerificationVerdict, WikiPage } from '../types';
-import { aiGenerate, DEFAULT_MODEL, fetchRemoteText } from './ai';
+import type { ActionType, ChatMessage, SourceItem, TargetEngine, VerificationVerdict, WikiPage } from '../types/index.ts';
 
-export interface GenerateAiParams {
+export interface GenerateAssistantParams {
   actionType: ActionType;
   prompt: string;
   pages: WikiPage[];
@@ -12,10 +11,14 @@ export interface GenerateAiParams {
   imageMimeType?: string;
 }
 
-export interface AiResponse {
+export interface AssistantResponse {
   text: string;
   modelUsed?: string;
 }
+
+
+import { aiGenerate, fetchRemoteText } from './ai.ts';
+const requestAi = aiGenerate;
 
 // Token-saving Smart Tiered Context Assembly with Hierarchy Awareness and GitHub Wiki link parsing
 export function assembleWikiContext(pages: WikiPage[], query: string = ''): string {
@@ -73,22 +76,22 @@ export function assembleWikiContext(pages: WikiPage[], query: string = ''): stri
     }
   });
 
-  let indexLines = '';
-  topLevelPages.forEach((p) => {
-    indexLines += `- [[${p.title}]] | Cat: ${p.category || 'Core'} | ${
-      p.summary || p.content.slice(0, 140).replace(/[\n#]/g, ' ').trim()
-    }\n`;
-    const children = parentMap.get(p.id) || [];
-    children.forEach((c) => {
-      indexLines += `  ↳ [[${c.title}]] (Subpage of ${p.title}) | ${
-        c.summary || c.content.slice(0, 120).replace(/[\n#]/g, ' ').trim()
-      }\n`;
-    });
-  });
+  const pagesById = new Map(pages.map((page) => [page.id, page]));
+  const visited = new Set<string>();
+  const index: string[] = [];
+  const appendPage = (page: WikiPage, depth: number) => {
+    if (visited.has(page.id)) return;
+    visited.add(page.id);
+    index.push(`${'  '.repeat(depth)}- [[${page.title}]] | Cat: ${page.category || 'Core'} | ${page.summary || page.content.slice(0, 140).replace(/[\n#]/g, ' ').trim()}`);
+    for (const child of parentMap.get(page.id) || []) appendPage(child, depth + 1);
+  };
+  topLevelPages.forEach((page) => appendPage(page, 0));
+  pages.forEach((page) => appendPage(page, 0)); // Include orphaned or cyclic legacy pages.
+  const indexLines = index.join('\n');
 
   let fullBody = '';
   fullPages.forEach((p) => {
-    const parent = p.parentId ? pages.find((x) => x.id === p.parentId) : null;
+    const parent = p.parentId ? pagesById.get(p.parentId) : null;
     fullBody += `### PAGE: ${p.title}${parent ? ` (Subpage of ${parent.title})` : ''} [Category: ${p.category || 'General'}]\n${p.content}\n\n---\n\n`;
   });
 
@@ -107,8 +110,8 @@ export function assembleWikiContext(pages: WikiPage[], query: string = ''): stri
 export const proxyFetchUrl = fetchRemoteText;
 
 export async function requestAssistantResponse(
-  params: GenerateAiParams
-): Promise<AiResponse> {
+  params: GenerateAssistantParams
+): Promise<AssistantResponse> {
   const {
     actionType,
     prompt,
@@ -266,12 +269,11 @@ Paste into: <exact page title>
 ${wikiContext}${chatContextStr}${scratchpadStr}`;
   }
 
-  const data = await aiGenerate({
-    prompt: fullPrompt,
-    systemInstruction,
-    model: DEFAULT_MODEL,
-    imageBase64,
-    imageMimeType
+  const data = await requestAi({
+      prompt: fullPrompt,
+      systemInstruction,
+      imageBase64,
+      imageMimeType
   });
   return {
     text: data.text || '',
@@ -282,13 +284,14 @@ ${wikiContext}${chatContextStr}${scratchpadStr}`;
 // Build wiki pages and subpages from sources with intelligent GitHub Wiki inline links
 export async function buildWikiFromSources(
   sources: SourceItem[],
-  existingPages: WikiPage[]
+  existingPages: WikiPage[],
+  replaceMode = false
 ): Promise<{ title: string; content: string; parentTitle?: string }[]> {
   const combinedSourcesText = sources
-    .map((s, idx) => `=== SOURCE ${idx + 1}: ${s.title} (${s.kind}) ===\n${s.text.slice(0, 12000)}`)
+    .map((s, idx) => `=== SOURCE ${idx + 1}: ${s.title} (${s.kind}) ===\n${s.text}`)
     .join('\n\n');
 
-  const knownTitles = existingPages.map((p) => p.title).join(', ');
+  const knownTitles = (replaceMode ? [] : existingPages).map((p) => p.title).join(', ');
 
   const systemInstruction = `You are an expert Game Systems Architect.
 Convert the provided SOURCE materials into clean, cohesive Game Design Document (GDD) wiki pages and SUBPAGES.
@@ -301,7 +304,7 @@ CRITICAL RULES FOR ORGANIZATION & GITHUB WIKI INLINE LINKING:
    - Follow GitHub Wiki format: [[display text|Target Page Title]] or [[Target Page Title]].
    - Example: "...scales with player [[strength|Strength & Poise]] and triggers a [[stagger|Combat & Stamina System]]".
 3. OUTPUT FORMAT:
-   - Output STRICT JSON array of objects ONLY:
+   - Output a STRICT JSON object with a "pages" array of objects:
      [
        {
          "title": "Combat System",
@@ -315,12 +318,13 @@ CRITICAL RULES FOR ORGANIZATION & GITHUB WIKI INLINE LINKING:
      ]
    - Content starts with "# Title", followed by ## Overview, ## Mechanics, ## Data tables, ## Edge Cases.
    - Known titles to align with: ${knownTitles || 'None yet'}
-   - STRICT JSON ONLY. No prose or markdown fences around the JSON array.`;
+   - Wrap the array in {"pages": [...]}. Set parentTitle to null for top-level pages.
+   - STRICT JSON ONLY. No prose or markdown fences.`;
 
-  const data = await aiGenerate({
-    prompt: `Transform these sources into structured, hierarchically organized game design pages with intelligent GitHub Wiki inline linking:\n\n${combinedSourcesText}`,
-    systemInstruction,
-    model: DEFAULT_MODEL
+  const data = await requestAi({
+      prompt: `Transform these sources into structured, hierarchically organized game design pages with intelligent GitHub Wiki inline linking:\n\n${combinedSourcesText}`,
+      systemInstruction,
+      outputKind: 'wiki_build',
   });
   let rawText = (data.text || '').trim();
 
@@ -328,12 +332,13 @@ CRITICAL RULES FOR ORGANIZATION & GITHUB WIKI INLINE LINKING:
   if (fenceMatch) rawText = fenceMatch[1].trim();
 
   try {
-    const parsed = JSON.parse(rawText);
+    const decoded = JSON.parse(rawText);
+    const parsed = Array.isArray(decoded) ? decoded : decoded.pages;
     if (Array.isArray(parsed) && parsed.length > 0) {
       return parsed.map((item: Record<string, unknown>) => ({
-        title: String(item.title || 'Untitled System').slice(0, 100),
-        parentTitle: item.parentTitle ? String(item.parentTitle).slice(0, 100) : undefined,
-        content: String(item.content || '').slice(0, 20000)
+        title: String(item.title || 'Untitled System'),
+        parentTitle: item.parentTitle ? String(item.parentTitle) : undefined,
+        content: String(item.content || '')
       }));
     }
   } catch (e) {
@@ -360,24 +365,19 @@ CRITICAL RULES FOR ORGANIZATION & GITHUB WIKI INLINE LINKING:
 
 // Auto-link wiki references using GitHub Wiki format: [[display text|Target Page Title]]
 export function autoLinkWikiReferences(text: string, pages: WikiPage[], currentPageId: string): string {
-  let result = text;
-  // Sort pages by title length descending so longer titles match first
-  const sortedPages = [...pages]
-    .filter((p) => p.id !== currentPageId && p.title.length > 2)
-    .sort((a, b) => b.title.length - a.title.length);
-
-  for (const page of sortedPages) {
-    const title = page.title;
-    const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // Regex that does not match inside existing [[...]] or markdown links or code fences
-    const regex = new RegExp(`(?<!\\[\\[|\\b#+\\s+)\\b(${escaped})\\b(?!\\]\\]|\\|)`, 'gi');
-    // GitHub Wiki format: [[Target Page Title]] for exact match, or [[Link Text|Target Page Title]]
-    result = result.replace(regex, (match) =>
-      match === page.title ? `[[${page.title}]]` : `[[${match}|${page.title}]]`
-    );
-  }
-
-  return result;
+  const titles = [...pages].filter((p) => p.id !== currentPageId && p.title.length > 2).sort((a, b) => b.title.length - a.title.length);
+  if (!titles.length) return text;
+  const escaped = titles.map((p) => p.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const titlePattern = new RegExp(`(?<![\\p{L}\\p{N}])(${escaped.join('|')})(?![\\p{L}\\p{N}])`, 'giu');
+  const byTitle = new Map(titles.map((p) => [p.title.toLowerCase(), p.title]));
+  const protectedPattern = /(^`{3,}[^\n]*\n[\s\S]*?^`{3,}[^\n]*$|^~{3,}[^\n]*\n[\s\S]*?^~{3,}[^\n]*$|`+[^`\n]*`+|\[\[[^\]]+\]\]|!?\[[^\]]*\]\([^)]*\)|^#{1,6} .*$|<[^>]*>)/gm;
+  return text.split(protectedPattern).map((part, index) => {
+    if (index % 2) return part;
+    return part.replace(titlePattern, (match) => {
+      const title = byTitle.get(match.toLowerCase())!;
+      return match === title ? `[[${title}]]` : `[[${match}|${title}]]`;
+    });
+  }).join('');
 }
 
 // Verify single wiki page against sources
@@ -386,9 +386,8 @@ export async function verifyWikiAgainstSources(
   sources: SourceItem[]
 ): Promise<VerificationVerdict> {
   const sourcesText = sources
-    .map((s) => `--- SOURCE: ${s.title} ---\n${s.text.slice(0, 4000)}`)
-    .join('\n\n')
-    .slice(0, 10000);
+    .map((s) => `--- SOURCE: ${s.title} ---\n${s.text}`)
+    .join('\n\n');
 
   const systemInstruction = `You are a strict game design fact-checker.
 Compare this single GDD wiki page against the provided SOURCE excerpts (ground truth).
@@ -404,10 +403,10 @@ Output a STRICT JSON object ONLY:
 - "error" = contradicted numbers or invented rules.
 Output STRICT JSON ONLY.`;
 
-  const data = await aiGenerate({
-    prompt: `WIKI PAGE TO CHECK:\n# ${page.title}\n${page.content}\n\nSOURCES (GROUND TRUTH):\n${sourcesText}`,
-    systemInstruction,
-    model: DEFAULT_MODEL
+  const data = await requestAi({
+      prompt: `WIKI PAGE TO CHECK:\n# ${page.title}\n${page.content}\n\nSOURCES (GROUND TRUTH):\n${sourcesText}`,
+      systemInstruction,
+      outputKind: 'verification',
   });
   let rawText = (data.text || '').trim();
   const fence = rawText.match(/```(?:json)?\s*\n([\s\S]*?)```/i);
@@ -440,9 +439,8 @@ export async function autoFixPageFromSources(
   sources: SourceItem[]
 ): Promise<string> {
   const sourcesText = sources
-    .map((s) => `--- SOURCE: ${s.title} ---\n${s.text.slice(0, 4000)}`)
-    .join('\n\n')
-    .slice(0, 10000);
+    .map((s) => `--- SOURCE: ${s.title} ---\n${s.text}`)
+    .join('\n\n');
 
   const findings = [
     ...verdict.issues.map((i) => `ISSUE: ${i}`),
@@ -458,10 +456,9 @@ CRITICAL RULES:
 - Output ONLY the corrected full page markdown starting with "# ${page.title}".
 - Do not output JSON, do not output explanations outside the page.`;
 
-  const data = await aiGenerate({
-    prompt: `ORIGINAL PAGE:\n# ${page.title}\n${page.content}\n\nFINDINGS TO RESOLVE:\n- ${findings}\n\nSOURCE EXCERPTS (GROUND TRUTH):\n${sourcesText}`,
-    systemInstruction,
-    model: DEFAULT_MODEL
+  const data = await requestAi({
+      prompt: `ORIGINAL PAGE:\n# ${page.title}\n${page.content}\n\nFINDINGS TO RESOLVE:\n- ${findings}\n\nSOURCE EXCERPTS (GROUND TRUTH):\n${sourcesText}`,
+      systemInstruction,
   });
   let fixedText = (data.text || '').trim();
   const fence = fixedText.match(/```(?:markdown|md)?[^\S\n]*\n([\s\S]*?)```/i);
@@ -485,10 +482,10 @@ Read it and output STRICT JSON ONLY:
   "keywords": ["5-10 key terms, system names, mechanics, or stats"]
 }`;
 
-  const data = await aiGenerate({
-    prompt: `# ${page.title}\n${page.content.slice(0, 8000)}`,
-    systemInstruction,
-    model: DEFAULT_MODEL
+  const data = await requestAi({
+      prompt: `# ${page.title}\n${page.content}`,
+      systemInstruction,
+      outputKind: 'index',
   });
   let rawText = (data.text || '').trim();
   const fence = rawText.match(/```(?:json)?\s*\n([\s\S]*?)```/i);
@@ -517,21 +514,20 @@ CRITICAL RULES:
 - Cut fluff and repetition only.
 - Output ONLY the rewritten markdown starting with "# ${page.title}". No JSON, no prose outside the page.`;
 
-  const data = await aiGenerate({
-    prompt: `# ${page.title}\n${page.content}`,
-    systemInstruction,
-    model: DEFAULT_MODEL
+  const data = await requestAi({
+      prompt: `# ${page.title}\n${page.content}`,
+      systemInstruction,
   });
   return (data.text || '').trim();
 }
 
 // Auto-name project in 2-4 words from Home page
 export async function autoNameProject(homeContent: string, pageTitles: string[]): Promise<string> {
-  const data = await aiGenerate({
-    prompt: `Name a game project in 2-4 words based on this design document (plain title only, no quotes, no punctuation).
+  const data = await requestAi({
+      prompt: `Name a game project in 2-4 words based on this design document (plain title only, no quotes, no punctuation).
 Home Premise: ${homeContent.slice(0, 1000)}
 Pages: ${pageTitles.join(', ')}`,
-    model: DEFAULT_MODEL
   });
   return (data.text || '').trim().replace(/^["']|["']$/g, '').slice(0, 40) || 'New Game Project';
 }
+

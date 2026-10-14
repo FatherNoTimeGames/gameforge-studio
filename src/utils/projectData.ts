@@ -2,6 +2,14 @@ import type { ProjectData } from '../types';
 import { TARGET_ENGINES } from '../data/initialData.ts';
 import { normalizePageHierarchy } from './projectEdits.ts';
 
+export function createEmptyProject(id: string, name = 'New Game Project'): ProjectData {
+  return {
+    id, name, manualName: false, updatedAt: Date.now(), targetEngineId: 'godot4',
+    pages: [], sources: [], conceptNotepad: '', teacherNotepad: '',
+    chatConcept: [], chatTeacher: [], snapshots: [],
+  };
+}
+
 export function importProject(data: any, id: string): ProjectData {
   if (typeof id !== 'string' || !id) throw new Error('Invalid project identifier.');
   if (!data || !Array.isArray(data.pages)) throw new Error('Invalid project file: missing pages array.');

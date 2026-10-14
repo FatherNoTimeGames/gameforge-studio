@@ -4,8 +4,28 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { WorkspaceStore } from '../server/workspaceStore.ts';
-import { createProjectBackup, importProject } from '../src/utils/projectData.ts';
+import { createEmptyProject, createProjectBackup, importProject } from '../src/utils/projectData.ts';
 import { changedFields } from '../shared/workspaceSync.ts';
+
+test('new games start empty and remain isolated through workspace saves', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'gameforge-new-project-'));
+  try {
+    const existing = importProject({ name: 'Existing game', pages: [{ id: 'old-page', title: 'Old wiki', content: 'Existing design' }], conceptNotepad: 'Existing notes' }, 'existing');
+    const fresh = createEmptyProject('new-game');
+    const store = new WorkspaceStore(directory);
+    await store.save({ projects: [fresh, existing], activeProjectId: fresh.id, revision: 0 });
+    const restored = (await new WorkspaceStore(directory).load())!.projects.map((project, index) => importProject(project, index === 0 ? fresh.id : existing.id));
+    assert.deepEqual(restored[0].pages, []);
+    assert.equal(restored[0].conceptNotepad, '');
+    assert.equal(restored[0].teacherNotepad, '');
+    assert.deepEqual(restored[1].pages, existing.pages);
+    assert.equal(restored[1].conceptNotepad, 'Existing notes');
+    fresh.pages.push({ ...existing.pages[0], id: 'new-page' });
+    assert.deepEqual(createEmptyProject('another-game').pages, []);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test('full backup round trip preserves sources, notes, chat, history, snapshots and hierarchy', () => {
   const original = importProject({ name: 'Game', pages: [{ id: 'p', title: 'Combat', content: 'Damage: 12', history: [{ content: 'Damage: 10', title: 'Combat', at: 1 }] }, { id: 'c', title: 'Damage', content: 'Scale: 2', parentId: 'p' }], sources: [{ id: 's', title: 'Source', text: '12', kind: 'paste', addedAt: 1 }], conceptNotepad: 'Concept', teacherNotepad: 'Code', chatConcept: [{ id: 'm', text: 'hello', role: 'user' }], chatTeacher: [], snapshots: [{ id: 'snap', name: 'Checkpoint', state: { pages: [] } }] }, 'original');

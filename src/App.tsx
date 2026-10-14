@@ -37,7 +37,7 @@ import {
 
 import { verifyAndRepairPages } from './services/verification';
 import { useWorkspace } from './hooks/useWorkspace';
-import { importProject } from './utils/projectData';
+import { createEmptyProject, importProject } from './utils/projectData';
 import { setChatGptMode } from './services/ai';
 import { appendChatReply, applyPageContent, assistantNotes, canSetPageParent, normalizePageHierarchy, pageWithContent } from './utils/projectEdits';
 
@@ -203,10 +203,11 @@ export default function App({ chatgptMode = false }: { chatgptMode?: boolean }) 
 
   const handleNewProject = () => {
     const newId = `proj-${crypto.randomUUID()}`;
-    const newProj = createDefaultProject(newId, 'New Game Project');
+    const newProj = createEmptyProject(newId);
     setProjects((prev) => [newProj, ...prev]);
     setActiveProjectId(newId);
-    setActivePageId(newProj.pages[0].id);
+    setActivePageId('');
+    setVerdicts([]);
   };
 
   const handleDeleteProject = (id: string) => {
